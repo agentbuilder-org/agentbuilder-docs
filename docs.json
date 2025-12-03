@@ -2,6 +2,20 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
   "name": "AgentBuilder",
+  "colors": {
+    "primary": "#9A3412",
+    "light": "#EA580C",
+    "dark": "#9A3412"
+  },
+  "font": {
+    "headings": {
+      "family": "Neuton",
+      "weight": 300
+    },
+    "body": {
+      "family": "Public Sans"
+    }
+  },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
@@ -74,8 +88,9 @@
     }
   },
   "logo": {
-    "light": "/images/agent-builder-logo.svg",
-    "dark": "/images/agent-builder-logo.svg"
+    "light": "/images/agent-builder-logo-light.svg",
+    "dark": "/images/agent-builder-logo-dark.svg",
+    "height": 40
   },
   "navbar": {
     "links": [
