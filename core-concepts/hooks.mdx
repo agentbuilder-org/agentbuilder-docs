@@ -1,0 +1,364 @@
+---
+title: 'Hooks'
+description: 'Intercept and modify agent execution at key lifecycle points'
+---
+
+## What are Hooks?
+
+Hooks are optional functions that run automatically at specific points during agent execution. They allow you to modify data, perform side effects, and integrate with external systems without modifying the framework code.
+
+<Card title="Why Use Hooks?" icon="hook">
+  Hooks provide clean extension points to customize agent behavior, add logging, filter messages, integrate with external services, and more - all without touching framework internals.
+</Card>
+
+## Key Benefits
+
+<CardGroup cols={2}>
+  <Card title="Non-Breaking" icon="shield">
+    Errors in hooks are caught and logged - never break execution
+  </Card>
+  <Card title="Auto-Discovered" icon="magnifying-glass">
+    Place in `agents/hooks/` directory - no registration needed
+  </Card>
+  <Card title="Type-Safe" icon="code">
+    Full TypeScript support with `defineHook` utility
+  </Card>
+  <Card title="Hot-Reloadable" icon="bolt">
+    Changes trigger HMR in development
+  </Card>
+</CardGroup>
+
+## How Hooks Work
+
+Hooks are functions that receive execution context (FlowState) and data, then either:
+
+1. **Transform data** and return modified version (transformation hooks)
+2. **Perform side effects** without returning anything (event hooks)
+
+All hooks are wrapped in error handling - if a hook throws an error, it's logged but execution continues with original data.
+
+## Hook Types
+
+### Transformation Hooks
+
+These hooks receive data, modify it, and return the modified version:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('filter_messages', async (state, rows) => {
+  // Modify rows
+  return rows.filter(row => row.status === 'completed');
+});
+```
+
+**Available transformation hooks:**
+- `filter_messages` - Filter SQL rows before transformation
+- `prefilter_llm_history` - Modify messages before sending to LLM
+- `before_create_message` - Modify message before database insert
+- `before_update_message` - Modify updates before applying
+
+### Event Hooks
+
+These hooks run after an event occurs and don't return anything:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('after_create_message', async (state, message) => {
+  // Perform side effects (logging, analytics, etc.)
+  console.log('Message created:', message.id);
+});
+```
+
+**Available event hooks:**
+- `after_create_message` - After message inserted
+- `after_update_message` - After message updated
+- `after_tool_call_success` - After successful tool execution
+- `after_tool_call_failure` - After failed tool execution
+
+## Common Use Cases
+
+### Message Filtering
+
+Filter out unwanted messages before they're sent to the LLM:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('filter_messages', async (state, rows) => {
+  // Remove failed tool messages
+  return rows.filter(row => {
+    if (row.role === 'tool' && row.tool_status === 'error') {
+      return false;
+    }
+    return true;
+  });
+});
+```
+
+### External Logging
+
+Send events to external analytics services:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('after_create_message', async (state, message) => {
+  if (message.role === 'assistant') {
+    await fetch('https://analytics.example.com/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        event: 'message_created',
+        thread_id: state.threadId,
+        message_id: message.id,
+      }),
+    });
+  }
+});
+```
+
+### Tool Call Transformation
+
+Convert tool calls to user messages:
+
+```typescript
+import { defineHook, injectMessage } from '@standardagents/builder';
+
+export default defineHook('after_tool_call_success', async (state, call, result) => {
+  if (call.function.name === 'get_user_input') {
+    // Inject a user message instead
+    await injectMessage(state, {
+      role: 'user',
+      content: result.result || '',
+    });
+
+    // Return null to remove the tool call from history
+    return null;
+  }
+
+  return result;
+});
+```
+
+### Message Enrichment
+
+Add context to messages before storage:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('before_create_message', async (state, message) => {
+  if (message.role === 'assistant') {
+    message.name = state.agentConfig.title;
+  }
+  return message;
+});
+```
+
+## Using defineHook
+
+All hooks should use the `defineHook` utility for strict typing:
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('filter_messages', async (state, rows) => {
+  // TypeScript knows exactly what state and rows are!
+  return rows;
+});
+```
+
+**Benefits:**
+- **Strict typing**: Parameters automatically typed based on hook name
+- **IntelliSense support**: Full autocomplete in your editor
+- **Type checking**: Catch errors at compile time
+- **Better documentation**: Type hints show exactly what each parameter is
+
+## Available Hooks Quick Reference
+
+| Hook | Type | When It Runs | Use Case |
+|------|------|--------------|----------|
+| `filter_messages` | Transform | Before SQL → Message conversion | Filter/modify message rows |
+| `prefilter_llm_history` | Transform | Before sending to LLM | Limit context, add dynamic data |
+| `before_create_message` | Transform | Before INSERT | Add metadata, modify content |
+| `before_update_message` | Transform | Before UPDATE | Validate changes, add timestamps |
+| `after_create_message` | Event | After INSERT | External logging, webhooks |
+| `after_update_message` | Event | After UPDATE | Track status changes |
+| `after_tool_call_success` | Transform | After successful tool | Modify results, convert to messages |
+| `after_tool_call_failure` | Transform | After failed tool | Enhance errors, suppress failures |
+
+## File Organization
+
+Hooks are auto-discovered from the `agents/hooks/` directory:
+
+```
+agents/
+└── hooks/
+    ├── filter_messages.ts
+    ├── after_create_message.ts
+    └── after_tool_call_success.ts
+```
+
+**Requirements:**
+- File name must match hook name: `filter_messages.ts`
+- Default export required
+- Use `defineHook` for type safety
+
+## Error Handling
+
+All hooks are wrapped in error handling that:
+
+1. **Catches exceptions** without breaking execution
+2. **Logs errors** with `[Hooks] ✗` prefix
+3. **Returns original data** as fallback
+
+```typescript
+// Your hook throws an error
+export default defineHook('filter_messages', async (state, rows) => {
+  throw new Error('Something went wrong!');
+});
+
+// Framework behavior:
+// 1. Catches error
+// 2. Logs: [Hooks] ✗ Error running filter_messages hook: Something went wrong!
+// 3. Returns original rows (unmodified)
+// 4. Continues execution normally
+```
+
+<Tip>
+  Always wrap risky operations (API calls, etc.) in try-catch blocks to handle errors gracefully.
+</Tip>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Hooks Fast">
+    Hooks run in the critical execution path. Keep them fast (< 100ms ideal):
+
+    ```typescript
+    // Good - quick operation
+    export default defineHook('filter_messages', async (state, rows) => {
+      return rows.filter(row => row.status === 'completed');
+    });
+
+    // Avoid - slow operation
+    export default defineHook('filter_messages', async (state, rows) => {
+      // Don't do expensive API calls here
+      for (const row of rows) {
+        await slowExternalAPI(row);
+      }
+      return rows;
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully">
+    Wrap risky operations in try-catch:
+
+    ```typescript
+    export default defineHook('after_create_message', async (state, message) => {
+      try {
+        await fetch('https://api.example.com/log', {
+          method: 'POST',
+          body: JSON.stringify(message),
+        });
+      } catch (error) {
+        console.error('[Hook] External API failed:', error);
+        // Don't throw - let hook complete successfully
+      }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Validate Input Data">
+    Check data structure before processing:
+
+    ```typescript
+    export default defineHook('before_create_message', async (state, message) => {
+      if (!message || !message.content) {
+        console.warn('[Hook] Invalid message structure');
+        return message;  // Return unchanged if invalid
+      }
+
+      // Safe to process
+      message.content = message.content.trim();
+      return message;
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Add Clear Comments">
+    Document what your hooks do:
+
+    ```typescript
+    import { defineHook } from '@standardagents/builder';
+
+    /**
+     * Filter out failed tool messages to keep LLM context clean.
+     * Only applies to messages with tool_status='error'.
+     */
+    export default defineHook('filter_messages', async (state, rows) => {
+      return rows.filter(row => {
+        if (row.role === 'tool' && row.tool_status === 'error') {
+          return false;
+        }
+        return true;
+      });
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## FlowState Context
+
+All hooks receive a `FlowState` object containing execution context:
+
+```typescript
+interface FlowState {
+  // Identity
+  threadId: string;
+  flowId: string;
+
+  // Configuration
+  agentConfig: Agent;
+  currentSide: 'a' | 'b';
+
+  // Execution State
+  turnCount: number;
+  stopped: boolean;
+
+  // Message Context
+  messageHistory: Message[];
+
+  // Storage & Environment
+  storage: DurableObjectStorage;
+  env: Env;
+
+  // ... and more
+}
+```
+
+Use FlowState to:
+- Check which agent is executing
+- Access turn count
+- Query storage
+- Access environment bindings
+- Emit events to frontend
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hooks API Reference" icon="code" href="/api-reference/hooks">
+    Complete hooks specification
+  </Card>
+  <Card title="FlowState" icon="diagram-project" href="/core-concepts/flowstate">
+    Learn about FlowState utilities
+  </Card>
+  <Card title="Tools" icon="wrench" href="/core-concepts/tools">
+    Create custom tools
+  </Card>
+  <Card title="Examples" icon="sparkles" href="/examples">
+    See hooks in action
+  </Card>
+</CardGroup>

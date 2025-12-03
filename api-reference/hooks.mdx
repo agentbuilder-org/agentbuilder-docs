@@ -1,0 +1,985 @@
+---
+title: 'Hooks API Reference'
+description: 'Complete API documentation for all lifecycle hooks'
+---
+
+## Overview
+
+Hooks are optional functions that run automatically at specific points during agent execution. This reference documents all available hooks, their signatures, parameters, and usage patterns.
+
+<Note>
+  All hooks should use the `defineHook` utility for strict typing and better developer experience.
+</Note>
+
+## Using defineHook
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('filter_messages', async (state, rows) => {
+  // TypeScript knows exactly what state and rows are!
+  return rows;
+});
+```
+
+## Available Hooks
+
+### filter_messages
+
+Filters or modifies SQL row data before it's transformed to chat completion format.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('filter_messages', async (state, rows) => {
+    return rows;
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="rows" type="MessageRow[]">
+  Array of SQL rows from messages table
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<MessageRow[]>">
+  The filtered/modified row array
+</ResponseField>
+
+#### MessageRow Structure
+
+```typescript
+interface MessageRow {
+  id: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  name: string | null;
+  tool_calls: string | null;          // JSON string of tool calls
+  tool_call_id: string | null;        // For role='tool' messages
+  log_id: string | null;              // Reference to logs table
+  created_at: number;                 // Microseconds timestamp
+  request_sent_at: number | null;
+  response_completed_at: number | null;
+  status: 'pending' | 'completed' | 'failed' | null;
+  silent: number | null;              // 1 if hidden, 0/null otherwise
+  tool_status: 'success' | 'error' | null;
+}
+```
+
+#### When It Runs
+
+- **Timing**: Before SQL rows are transformed to chat completion format
+- **Frequency**: Every turn that loads message history
+- **Context**: After rows fetched from SQLite, before transformation
+
+#### Examples
+
+<Accordion title="Filter Out Failed Tools">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('filter_messages', async (state, rows) => {
+    return rows.filter(row => {
+      if (row.role === 'tool' && row.tool_status === 'error') {
+        return false;
+      }
+      return true;
+    });
+  });
+  ```
+</Accordion>
+
+<Accordion title="Time-Based Filtering">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('filter_messages', async (state, rows) => {
+    // Only keep messages from last 24 hours
+    const dayAgo = (Date.now() - 24 * 60 * 60 * 1000) * 1000; // microseconds
+    return rows.filter(row => row.created_at >= dayAgo);
+  });
+  ```
+</Accordion>
+
+<Accordion title="Agent-Specific Filtering">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('filter_messages', async (state, rows) => {
+    if (state.agentConfig.title === 'Production Agent') {
+      // Remove all error messages for cleaner context
+      return rows.filter(row => row.tool_status !== 'error');
+    }
+    return rows;
+  });
+  ```
+</Accordion>
+
+---
+
+### prefilter_llm_history
+
+Modifies the message history before it's sent to the LLM.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('prefilter_llm_history', async (state, messages) => {
+    return messages;
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="messages" type="Message[]">
+  Array of messages about to be sent to LLM
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<Message[]>">
+  The filtered/modified message array
+</ResponseField>
+
+#### Message Structure
+
+```typescript
+interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: string | null;
+  tool_call_id?: string | null;
+  name?: string | null;
+}
+```
+
+#### When It Runs
+
+- **Timing**: Immediately before sending messages to LLM
+- **Frequency**: Every turn that involves an LLM request
+- **Context**: After message history assembled but before API call
+
+#### Examples
+
+<Accordion title="Limit Message History">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('prefilter_llm_history', async (state, messages) => {
+    // Keep only last 20 messages
+    return messages.slice(-20);
+  });
+  ```
+</Accordion>
+
+<Accordion title="Add Dynamic Context">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('prefilter_llm_history', async (state, messages) => {
+    // Inject current turn count into system prompt
+    const systemMsg = messages.find(m => m.role === 'system');
+    if (systemMsg && systemMsg.content) {
+      systemMsg.content += `\n\nCurrent turn: ${state.turnCount}/25`;
+    }
+    return messages;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Remove Tool Messages">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('prefilter_llm_history', async (state, messages) => {
+    // Keep system messages and recent non-tool messages
+    const systemMessages = messages.filter(m => m.role === 'system');
+    const otherMessages = messages
+      .filter(m => m.role !== 'system' && m.role !== 'tool')
+      .slice(-10);
+
+    return [...systemMessages, ...otherMessages];
+  });
+  ```
+</Accordion>
+
+---
+
+### post_process_message
+
+Modifies assistant messages after LLM response but before storage.
+
+<Warning>
+  This hook is defined but **not yet invoked** in FlowEngine. It will be activated in a future update.
+</Warning>
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('post_process_message', async (state, message) => {
+    return message;
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="message" type="Message">
+  The assistant's message from LLM
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<Message>">
+  The modified message
+</ResponseField>
+
+#### Examples
+
+<Accordion title="Clean Up Formatting">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('post_process_message', async (state, message) => {
+    if (message.content) {
+      message.content = message.content
+        .trim()
+        .replace(/\n{3,}/g, '\n\n');  // Max 2 consecutive newlines
+    }
+    return message;
+  });
+  ```
+</Accordion>
+
+---
+
+### before_create_message
+
+Modifies any message before it's inserted into the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('before_create_message', async (state, message) => {
+    return message;
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="message" type="CreateMessage">
+  Message about to be created
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<CreateMessage>">
+  The modified message
+</ResponseField>
+
+#### CreateMessage Structure
+
+```typescript
+interface CreateMessage {
+  id: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: string | null;
+  tool_call_id?: string | null;
+  name?: string | null;
+  created_at: number;
+  status?: 'pending' | 'completed' | 'failed';
+  silent?: boolean;
+}
+```
+
+#### When It Runs
+
+- **Timing**: Immediately before INSERT INTO messages
+- **Frequency**: Every time a message is created
+- **Scope**: ALL message types (user, assistant, tool, system)
+
+#### Examples
+
+<Accordion title="Add Agent Name">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('before_create_message', async (state, message) => {
+    // Tag messages with agent name
+    if (message.role === 'assistant') {
+      message.name = state.agentConfig.title;
+    }
+    return message;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Add Content Prefix">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('before_create_message', async (state, message) => {
+    // Add prefix based on role
+    if (message.content && message.role === 'user') {
+      message.content = `[User] ${message.content}`;
+    }
+    return message;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Conditional Transformation">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('before_create_message', async (state, message) => {
+    // Only modify for specific agent
+    if (state.agentConfig.title === 'Customer Support') {
+      if (message.role === 'assistant' && message.content) {
+        // Add signature to all responses
+        message.content += '\n\nBest regards,\nSupport Team';
+      }
+    }
+    return message;
+  });
+  ```
+</Accordion>
+
+---
+
+### after_create_message
+
+Runs after a message is successfully inserted into the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('after_create_message', async (state, message) => {
+    // No return value
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="message" type="CreateMessage">
+  The message that was just created
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<void>">
+  No return value
+</ResponseField>
+
+#### When It Runs
+
+- **Timing**: Immediately after successful INSERT INTO messages
+- **Frequency**: Every time a message is created
+- **Scope**: ALL message types
+
+#### Examples
+
+<Accordion title="External Logging">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('after_create_message', async (state, message) => {
+    // Send to analytics service
+    if (message.role === 'assistant' && message.content) {
+      try {
+        await fetch('https://analytics.example.com/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'message_created',
+            thread_id: state.threadId,
+            agent_id: state.agentConfig.id,
+            message_id: message.id,
+            content_length: message.content.length,
+          }),
+        });
+      } catch (error) {
+        console.error('Analytics failed:', error);
+      }
+    }
+  });
+  ```
+</Accordion>
+
+<Accordion title="Webhook Notification">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('after_create_message', async (state, message) => {
+    // Notify webhook on user messages
+    if (message.role === 'user') {
+      await fetch('https://webhook.example.com/new-message', {
+        method: 'POST',
+        body: JSON.stringify({
+          threadId: state.threadId,
+          content: message.content,
+        }),
+      });
+    }
+  });
+  ```
+</Accordion>
+
+---
+
+### before_update_message
+
+Modifies message updates before they're applied to the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('before_update_message', async (state, messageId, updates) => {
+    return updates;
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="messageId" type="string">
+  ID of message being updated
+</ParamField>
+
+<ParamField path="updates" type="MessageUpdates">
+  Fields being updated
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<MessageUpdates>">
+  The modified updates object
+</ResponseField>
+
+#### MessageUpdates Structure
+
+```typescript
+interface MessageUpdates {
+  content?: string | null;
+  tool_calls?: string | null;
+  log_id?: string | null;
+  response_completed_at?: number | null;
+  status?: 'pending' | 'completed' | 'failed';
+}
+```
+
+<Warning>
+  Updates object only contains fields being changed, not the full message.
+</Warning>
+
+#### When It Runs
+
+- **Timing**: Immediately before UPDATE messages SET ...
+- **Frequency**: Every time a message is updated
+- **Common Triggers**: Status changes, content streaming completion, adding tool_calls
+
+#### Examples
+
+<Accordion title="Add Completion Timestamp">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('before_update_message', async (state, messageId, updates) => {
+    // Ensure completed messages have timestamp
+    if (updates.status === 'completed' && !updates.response_completed_at) {
+      updates.response_completed_at = Date.now() * 1000; // microseconds
+    }
+    return updates;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Sanitize Content">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('before_update_message', async (state, messageId, updates) => {
+    // Clean up content on updates
+    if (updates.content && typeof updates.content === 'string') {
+      updates.content = updates.content.trim();
+    }
+    return updates;
+  });
+  ```
+</Accordion>
+
+---
+
+### after_update_message
+
+Runs after a message is successfully updated in the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('after_update_message', async (state, messageId, updates) => {
+    // No return value
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="messageId" type="string">
+  ID of message that was updated
+</ParamField>
+
+<ParamField path="updates" type="MessageUpdates">
+  Fields that were updated
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<void>">
+  No return value
+</ResponseField>
+
+#### When It Runs
+
+- **Timing**: Immediately after successful UPDATE messages
+- **Frequency**: Every time a message is updated
+- **Scope**: All message update operations
+
+#### Examples
+
+<Accordion title="Track Status Changes">
+  ```typescript
+  import { defineHook } from '@standardagents/builder';
+
+  export default defineHook('after_update_message', async (state, messageId, updates) => {
+    // Log status transitions
+    if (updates.status) {
+      console.log(`[Status Change] Message ${messageId}: ${updates.status}`);
+
+      // Send to monitoring
+      await fetch('https://monitor.example.com/status', {
+        method: 'POST',
+        body: JSON.stringify({
+          messageId,
+          status: updates.status,
+          threadId: state.threadId,
+        }),
+      });
+    }
+  });
+  ```
+</Accordion>
+
+---
+
+### after_tool_call_success
+
+Intercepts successful tool executions before results are stored in the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('after_tool_call_success', async (state, call, result) => {
+    return result;  // or null to remove from history
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="call" type="ToolCall">
+  The tool call that was executed
+</ParamField>
+
+<ParamField path="result" type="ToolResult">
+  The successful result from the tool
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<ToolResult | null>">
+  Modified result, or `null` to remove the tool call from history
+</ResponseField>
+
+#### ToolCall Structure
+
+```typescript
+interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+```
+
+#### ToolResult Structure
+
+```typescript
+interface ToolResult {
+  status: "success";
+  result?: string;
+}
+```
+
+#### When It Runs
+
+- **Timing**: Immediately after successful tool execution, before storage
+- **Frequency**: Every time a tool executes successfully
+- **Scope**: All tool types (native, prompt, agent)
+
+#### Returning `null`
+
+When the hook returns `null`:
+1. The tool call message is **removed** from message history
+2. The tool result message is **not stored**
+3. You can inject custom messages using `injectMessage()`
+
+#### Examples
+
+<Accordion title="Convert Tool Call to User Message">
+  ```typescript
+  import { defineHook, injectMessage } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_success', async (state, call, result) => {
+    // Convert specific tool calls into user messages
+    if (call.function.name === "get_user_input") {
+      // Inject a user message with the tool's result
+      await injectMessage(state, {
+        role: "user",
+        content: result.result || "",
+      });
+
+      // Return null to remove the tool call from history
+      return null;
+    }
+
+    return result; // Pass through unchanged
+  });
+  ```
+</Accordion>
+
+<Accordion title="Modify Tool Results">
+  ```typescript
+  import { defineHook } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_success', async (state, call, result) => {
+    // Add metadata to all tool results
+    if (result.result) {
+      result.result = `[Tool: ${call.function.name}]\n${result.result}`;
+    }
+    return result;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Filter Sensitive Data">
+  ```typescript
+  import { defineHook } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_success', async (state, call, result) => {
+    // Remove sensitive data from results
+    if (call.function.name === "lookup_user" && result.result) {
+      const data = JSON.parse(result.result);
+      delete data.ssn;
+      delete data.password;
+      result.result = JSON.stringify(data);
+    }
+    return result;
+  });
+  ```
+</Accordion>
+
+---
+
+### after_tool_call_failure
+
+Intercepts failed tool executions before errors are stored in the database.
+
+<ResponseField name="Signature" type="function">
+  ```typescript
+  defineHook('after_tool_call_failure', async (state, call, result) => {
+    return result;  // or null to remove from history
+  })
+  ```
+</ResponseField>
+
+<ParamField path="state" type="FlowState">
+  Full execution context
+</ParamField>
+
+<ParamField path="call" type="ToolCall">
+  The tool call that failed
+</ParamField>
+
+<ParamField path="result" type="ToolResult">
+  The error result from the tool
+</ParamField>
+
+<ResponseField name="Returns" type="Promise<ToolResult | null>">
+  Modified error result, or `null` to remove the tool call from history
+</ResponseField>
+
+#### ToolResult Structure (Error)
+
+```typescript
+interface ToolResult {
+  status: "error";
+  error?: string;
+  stack?: string;
+}
+```
+
+#### When It Runs
+
+- **Timing**: Immediately after tool failure, before storage
+- **Frequency**: Every time a tool fails or throws an error
+- **Scope**: All tool types (native, prompt, agent)
+
+#### Examples
+
+<Accordion title="Suppress Specific Errors">
+  ```typescript
+  import { defineHook, injectMessage } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_failure', async (state, call, result) => {
+    // Silently suppress "not found" errors
+    if (result.error?.includes("not found")) {
+      // Inject a user message instead
+      await injectMessage(state, {
+        role: "user",
+        content: "The requested item was not found.",
+      });
+
+      // Remove the failed tool call
+      return null;
+    }
+
+    return result; // Pass through other errors
+  });
+  ```
+</Accordion>
+
+<Accordion title="Enhance Error Messages">
+  ```typescript
+  import { defineHook } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_failure', async (state, call, result) => {
+    // Add context to error messages
+    if (result.error) {
+      result.error = `[${call.function.name} failed] ${result.error}`;
+    }
+    return result;
+  });
+  ```
+</Accordion>
+
+<Accordion title="Send Error Notifications">
+  ```typescript
+  import { defineHook } from "@standardagents/builder";
+
+  export default defineHook('after_tool_call_failure', async (state, call, result) => {
+    // Notify external system of critical errors
+    if (call.function.name === "payment_processing") {
+      try {
+        await fetch("https://alerts.example.com/error", {
+          method: "POST",
+          body: JSON.stringify({
+            tool: call.function.name,
+            error: result.error,
+            threadId: state.threadId,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to send error notification:", err);
+      }
+    }
+
+    return result;
+  });
+  ```
+</Accordion>
+
+## Common Types
+
+### FlowState
+
+Full execution context available to all hooks:
+
+```typescript
+interface FlowState {
+  // Identity
+  threadId: string;
+  flowId: string;
+
+  // Configuration
+  agentConfig: Agent;
+  currentSide: 'a' | 'b';
+
+  // Execution State
+  turnCount: number;
+  stopped: boolean;
+  stoppedBy?: 'a' | 'b';
+
+  // Message Context
+  messageHistory: Message[];
+
+  // Tool Execution
+  sequence: {
+    queue: ToolCall[];
+    isHandling: boolean;
+  };
+
+  // Streaming & Telemetry
+  stream: StreamManager;
+  emitMessage?: (msg: any) => void;
+  emitLog?: (log: any) => void;
+
+  // Runtime Context
+  env: Env;
+  storage: DurableObjectStorage;
+  context: Record<string, any>;
+
+  // Retry Tracking
+  retryCount: number;
+  retryReason?: string;
+
+  // Abort Control
+  abortController?: AbortController;
+}
+```
+
+### Agent
+
+Agent configuration from D1:
+
+```typescript
+interface Agent {
+  id: string;
+  title: string;
+  type: 'dual_ai' | 'ai_human';
+
+  // Side A Configuration
+  side_a_system_prompt: string;
+  side_a_stop_option: 'returns_content' | 'tool';
+  side_a_stop_tool?: string;
+
+  // Side B Configuration (null for ai_human)
+  side_b_system_prompt?: string;
+  side_b_stop_option?: 'returns_content' | 'tool';
+  side_b_stop_tool?: string;
+
+  // Additional fields...
+  max_session_turns?: number;
+  expose_as_tool?: boolean;
+  tool_description?: string;
+}
+```
+
+## Error Handling
+
+All hooks are wrapped in error handling that:
+
+1. **Catches exceptions** without breaking execution
+2. **Logs errors** with `[Hooks] ✗` prefix
+3. **Returns original data** as fallback
+
+### Example Error Flow
+
+```typescript
+// Your hook throws an error
+export default defineHook('before_create_message', async (state, message) => {
+  throw new Error('Something went wrong!');
+});
+
+// Framework behavior:
+// 1. Catches error
+// 2. Logs: [Hooks] ✗ Error running before_create_message hook: Something went wrong!
+// 3. Returns original message (unmodified)
+// 4. Continues execution normally
+```
+
+### Best Practices for Error Handling
+
+<AccordionGroup>
+  <Accordion title="Wrap Risky Operations">
+    ```typescript
+    export default defineHook('after_create_message', async (state, message) => {
+      try {
+        await fetch('https://api.example.com/log', {
+          method: 'POST',
+          body: JSON.stringify(message),
+        });
+      } catch (error) {
+        console.error('[Hook] External API failed:', error);
+        // Don't throw - let hook complete successfully
+      }
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Validate Input">
+    ```typescript
+    export default defineHook('before_create_message', async (state, message) => {
+      if (!message || !message.content) {
+        console.warn('[Hook] Invalid message structure');
+        return message;  // Return unchanged if invalid
+      }
+
+      // Safe to process
+      message.content = message.content.trim();
+      return message;
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Defensive Checks">
+    ```typescript
+    export default defineHook('before_update_message', async (state, messageId, updates) => {
+      // Check if field exists before modifying
+      if (updates.status && updates.status === 'completed') {
+        updates.response_completed_at = Date.now() * 1000;
+      }
+      return updates;
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## File Structure
+
+```
+agents/
+└── hooks/
+    ├── filter_messages.ts
+    ├── prefilter_llm_history.ts
+    ├── before_create_message.ts
+    ├── after_create_message.ts
+    ├── before_update_message.ts
+    ├── after_update_message.ts
+    ├── after_tool_call_success.ts
+    └── after_tool_call_failure.ts
+```
+
+**Requirements:**
+- File name must match hook name
+- One hook per file
+- Default export required
+- Use `defineHook` for type safety
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Hooks Overview" icon="hook" href="/core-concepts/hooks">
+    High-level hooks concepts
+  </Card>
+  <Card title="FlowState" icon="diagram-project" href="/core-concepts/flowstate">
+    FlowState utility methods
+  </Card>
+  <Card title="Tools" icon="wrench" href="/api-reference/tools">
+    Create custom function tools
+  </Card>
+  <Card title="Examples" icon="sparkles" href="/examples">
+    See hooks in action
+  </Card>
+</CardGroup>

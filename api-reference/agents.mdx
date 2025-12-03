@@ -1,0 +1,638 @@
+---
+title: 'Agents API Reference'
+description: 'Complete technical reference for agent configuration and types'
+---
+
+## Overview
+
+Agents in AgentBuilder define conversational AI experiences with precise control over participants, prompts, tools, and stop conditions. This document provides the complete API specification.
+
+<Info>
+Agents are auto-discovered from the `agents/agents/` directory. Each file should export a default agent definition using `defineAgent()`.
+</Info>
+
+## defineAgent
+
+The `defineAgent` function creates an agent configuration with full TypeScript support.
+
+### Function Signature
+
+```typescript
+function defineAgent<N extends string>(
+  config: AgentDefinition<N>
+): AgentDefinition<N>
+```
+
+### AgentDefinition Type
+
+```typescript
+interface AgentDefinition<N extends string = string> {
+  // Required fields
+  name: N;
+  sideA: SideConfig;
+
+  // Optional fields
+  title?: string;
+  type?: 'ai_human' | 'dual_ai';
+  maxSessionTurns?: number;
+  sideB?: SideConfig;
+  exposeAsTool?: boolean;
+  toolDescription?: string;
+  tags?: string[];
+}
+```
+
+## Configuration Options
+
+### Core Properties
+
+<ResponseField name="name" type="string" required>
+  Unique identifier for this agent. Use snake_case.
+
+  **Naming conventions:**
+  - Use descriptive names: `customer_support`, `billing_specialist`
+  - Avoid: `agent1`, `bot`, `helper`
+
+  ```typescript
+  name: 'support_agent'  // Used in API calls and references
+  ```
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Human-readable title. Deprecated in favor of `name`.
+
+  ```typescript
+  title: 'Customer Support Agent'  // Optional display name
+  ```
+</ResponseField>
+
+<ResponseField name="type" type="'ai_human' | 'dual_ai'" default="'ai_human'">
+  Specifies the conversation type.
+
+  | Type | Description | Side B Required |
+  |------|-------------|-----------------|
+  | `'ai_human'` | AI converses with human | No |
+  | `'dual_ai'` | Two AIs converse | Yes |
+
+  ```typescript
+  // Human-AI conversation (default)
+  type: 'ai_human'
+
+  // AI-AI conversation
+  type: 'dual_ai'
+  ```
+</ResponseField>
+
+<ResponseField name="maxSessionTurns" type="number" default={250}>
+  Maximum total turns before conversation ends. Primarily used for `dual_ai` to prevent infinite loops.
+
+  **Hard maximum:** 250 turns regardless of this setting.
+
+  ```typescript
+  maxSessionTurns: 20  // Max 20 total turns
+  ```
+</ResponseField>
+
+<ResponseField name="tags" type="string[]" default={[]}>
+  Array of tags for categorization and filtering.
+
+  **Use cases:**
+  - Filtering agents in UI
+  - Organizing agents by category
+  - Routing logic
+
+  ```typescript
+  tags: ['support', 'tier-1', 'customer-facing']
+  ```
+</ResponseField>
+
+### Side Configuration
+
+Both `sideA` and `sideB` use the `SideConfig` type:
+
+<ResponseField name="sideA" type="SideConfig" required>
+  Configuration for side A (always the AI for `ai_human` agents).
+
+  ```typescript
+  sideA: {
+    label: 'Support Agent',
+    prompt: 'customer_support',
+    stopOnResponse: true,
+    maxTurns: 25,
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="sideB" type="SideConfig">
+  Configuration for side B. Required only for `dual_ai` agents.
+
+  For `ai_human` agents, side B represents the human and doesn't need configuration.
+
+  ```typescript
+  sideB: {
+    label: 'Con',
+    prompt: 'debate_con',
+    stopOnResponse: false,
+    maxTurns: 10,
+  }
+  ```
+</ResponseField>
+
+### Tool Exposure
+
+<ResponseField name="exposeAsTool" type="boolean" default={false}>
+  Whether to expose this agent as a callable tool for other prompts/agents.
+
+  Enables agent handoffs and routing.
+
+  ```typescript
+  exposeAsTool: true
+  ```
+</ResponseField>
+
+<ResponseField name="toolDescription" type="string">
+  Description shown when agent is exposed as a tool. **Required if `exposeAsTool: true`**.
+
+  Should be specific about what the agent handles and when to use it.
+
+  ```typescript
+  toolDescription: 'Hand off billing and payment issues to a specialist with deep knowledge of payment systems'
+  ```
+</ResponseField>
+
+## SideConfig
+
+Configuration for individual sides (A or B).
+
+### SideConfig Type
+
+```typescript
+interface SideConfig {
+  // Required
+  prompt: StandardAgents.Prompts;
+
+  // Optional
+  label?: string;
+  stopOnResponse?: boolean;
+  stopTool?: StandardAgents.Callables;
+  stopToolResponseProperty?: string;
+  maxTurns?: number;
+  endConversationTool?: StandardAgents.Callables;
+  manualStopCondition?: boolean;
+}
+```
+
+### Side Properties
+
+<ResponseField name="prompt" type="string" required>
+  Reference to a prompt defined in `agents/prompts/`.
+
+  ```typescript
+  prompt: 'customer_support'  // Must exist in prompts/
+  ```
+</ResponseField>
+
+<ResponseField name="label" type="string">
+  Human-readable label displayed in UI and logs.
+
+  ```typescript
+  label: 'Support Agent'
+  ```
+</ResponseField>
+
+<ResponseField name="stopOnResponse" type="boolean" default={true}>
+  When `true`, the side's turn ends when the AI returns text content without tool calls.
+
+  **Behavior:**
+  - `true`: Turn ends after text response (conversational agents)
+  - `false`: Turn continues even after text (multi-step workflows)
+
+  ```typescript
+  stopOnResponse: true  // Stop after each response
+  ```
+</ResponseField>
+
+<ResponseField name="stopTool" type="string">
+  Tool name that ends the turn when called.
+
+  When specified, requires `stopToolResponseProperty`.
+
+  ```typescript
+  stopTool: 'complete_checkout'
+  stopToolResponseProperty: 'orderId'
+  ```
+</ResponseField>
+
+<ResponseField name="stopToolResponseProperty" type="string">
+  Property to extract from stop tool result.
+
+  **Required if `stopTool` is specified.**
+
+  ```typescript
+  stopToolResponseProperty: 'orderId'  // Extract result.orderId
+  ```
+</ResponseField>
+
+<ResponseField name="maxTurns" type="number">
+  Maximum turns this side can take before stopping.
+
+  ```typescript
+  maxTurns: 5  // Max 5 turns for this side
+  ```
+</ResponseField>
+
+<ResponseField name="endConversationTool" type="string">
+  Tool that ends the **entire conversation** (not just the turn) when called.
+
+  ```typescript
+  endConversationTool: 'close_ticket'  // Ends conversation completely
+  ```
+</ResponseField>
+
+<ResponseField name="manualStopCondition" type="boolean" default={false}>
+  Enable manual stop handling via hooks. When `true`, automatic stop conditions are disabled.
+
+  ```typescript
+  manualStopCondition: true  // Handle stop in hooks
+  stopOnResponse: false
+  ```
+</ResponseField>
+
+## Stop Conditions
+
+Multiple stop conditions can be configured. They are evaluated in priority order:
+
+### Priority Order
+
+1. **`endConversationTool`** - Highest priority, ends everything
+2. **`stopTool`** - Ends current turn
+3. **`maxTurns`** - Ends side's participation
+4. **`stopOnResponse`** - Ends turn on text response
+5. **`maxSessionTurns`** - Ends conversation
+
+### Stop Condition Types
+
+<Tabs>
+  <Tab title="Turn Stop Conditions">
+    Control when a single turn ends:
+
+    | Condition | Configuration | Description |
+    |-----------|--------------|-------------|
+    | Text Response | `stopOnResponse: true` | Stop when AI returns text without tools |
+    | Specific Tool | `stopTool: 'tool_name'` | Stop when specific tool is called |
+    | Max Turns | `maxTurns: N` | Stop after N turns by this side |
+    | Manual | `manualStopCondition: true` | Stop handled by hooks |
+  </Tab>
+
+  <Tab title="Conversation End Conditions">
+    Control when the entire conversation ends:
+
+    | Condition | Configuration | Description |
+    |-----------|--------------|-------------|
+    | End Tool | `endConversationTool: 'tool_name'` | End when tool is called |
+    | Max Session | `maxSessionTurns: N` | End after N total turns |
+    | Both Sides Stopped | Automatic in dual_ai | End when both sides stop |
+  </Tab>
+</Tabs>
+
+## Type Definitions
+
+### Generated Types
+
+After defining agents, AgentBuilder generates type-safe references:
+
+```typescript
+// Auto-generated namespace
+declare namespace AgentBuilder {
+  type Agents = 'support_agent' | 'billing_specialist' | 'debate_agent';
+}
+
+// Usage in code
+function startAgent(agentName: AgentBuilder.Agents) {
+  // TypeScript validates agentName must be a defined agent
+}
+```
+
+### AgentDefinition Interface
+
+Complete TypeScript definition:
+
+```typescript
+interface AgentDefinition<N extends string = string> {
+  /**
+   * Unique identifier for this agent
+   * @example 'customer_support_agent'
+   */
+  name: N;
+
+  /**
+   * Human-readable title (deprecated, use name)
+   * @deprecated
+   */
+  title?: string;
+
+  /**
+   * Agent type: human-AI or AI-AI
+   * @default 'ai_human'
+   */
+  type?: 'ai_human' | 'dual_ai';
+
+  /**
+   * Maximum total turns for dual_ai (prevents infinite loops)
+   * @default 250
+   */
+  maxSessionTurns?: number;
+
+  /**
+   * Side A configuration (AI side for ai_human)
+   */
+  sideA: SideConfig;
+
+  /**
+   * Side B configuration (required for dual_ai)
+   */
+  sideB?: SideConfig;
+
+  /**
+   * Expose as tool for handoffs
+   * @default false
+   */
+  exposeAsTool?: boolean;
+
+  /**
+   * Description when used as tool (required if exposeAsTool)
+   */
+  toolDescription?: string;
+
+  /**
+   * Tags for categorization
+   * @default []
+   */
+  tags?: string[];
+}
+```
+
+### SideConfig Interface
+
+```typescript
+interface SideConfig {
+  /**
+   * Display label for this side
+   */
+  label?: string;
+
+  /**
+   * Prompt to use (must be defined in agents/prompts/)
+   */
+  prompt: StandardAgents.Prompts;
+
+  /**
+   * Stop turn when AI returns text content
+   * @default true
+   */
+  stopOnResponse?: boolean;
+
+  /**
+   * Stop turn when this tool is called
+   */
+  stopTool?: StandardAgents.Callables;
+
+  /**
+   * Property to extract from stop tool result
+   * Required if stopTool is specified
+   */
+  stopToolResponseProperty?: string;
+
+  /**
+   * Maximum turns for this side
+   */
+  maxTurns?: number;
+
+  /**
+   * Tool that ends entire conversation
+   */
+  endConversationTool?: StandardAgents.Callables;
+
+  /**
+   * Enable manual stop handling via hooks
+   * @default false
+   */
+  manualStopCondition?: boolean;
+}
+```
+
+## Complete Examples
+
+### Basic Support Agent
+
+```typescript
+// agents/agents/support_agent.ts
+import { defineAgent } from '@agentbuilder/vite';
+
+export default defineAgent({
+  name: 'support_agent',
+  type: 'ai_human',
+  sideA: {
+    label: 'Support',
+    prompt: 'customer_support',
+    stopOnResponse: true,
+  },
+  tags: ['support', 'customer-facing'],
+});
+```
+
+### Multi-Step Workflow Agent
+
+```typescript
+// agents/agents/checkout_agent.ts
+import { defineAgent } from '@agentbuilder/vite';
+
+export default defineAgent({
+  name: 'checkout_agent',
+  type: 'ai_human',
+  sideA: {
+    label: 'Checkout Assistant',
+    prompt: 'checkout_flow',
+    stopOnResponse: false,
+    stopTool: 'confirm_order',
+    stopToolResponseProperty: 'orderId',
+    endConversationTool: 'complete_checkout',
+    maxTurns: 30,
+  },
+  tags: ['commerce', 'checkout'],
+});
+```
+
+### Specialist Agent for Handoffs
+
+```typescript
+// agents/agents/billing_specialist.ts
+import { defineAgent } from '@agentbuilder/vite';
+
+export default defineAgent({
+  name: 'billing_specialist',
+  type: 'ai_human',
+  sideA: {
+    label: 'Billing Specialist',
+    prompt: 'billing_expert',
+    stopOnResponse: true,
+    endConversationTool: 'resolve_billing',
+  },
+  exposeAsTool: true,
+  toolDescription: 'Expert handling of billing and payment issues',
+  tags: ['support', 'tier-2', 'billing'],
+});
+```
+
+### Dual AI Debate Agent
+
+```typescript
+// agents/agents/debate_agent.ts
+import { defineAgent } from '@agentbuilder/vite';
+
+export default defineAgent({
+  name: 'debate_agent',
+  type: 'dual_ai',
+  maxSessionTurns: 20,
+  sideA: {
+    label: 'Pro',
+    prompt: 'debate_pro',
+    stopOnResponse: false,
+    maxTurns: 10,
+  },
+  sideB: {
+    label: 'Con',
+    prompt: 'debate_con',
+    stopOnResponse: false,
+    maxTurns: 10,
+    endConversationTool: 'conclude_debate',
+  },
+  tags: ['simulation', 'debate'],
+});
+```
+
+### Iterative Evaluation Agent
+
+```typescript
+// agents/agents/evaluation_agent.ts
+import { defineAgent } from '@agentbuilder/vite';
+
+export default defineAgent({
+  name: 'evaluation_agent',
+  type: 'dual_ai',
+  maxSessionTurns: 10,
+  sideA: {
+    label: 'Writer',
+    prompt: 'content_writer',
+    stopOnResponse: false,
+    maxTurns: 3,
+  },
+  sideB: {
+    label: 'Critic',
+    prompt: 'content_critic',
+    stopOnResponse: false,
+    maxTurns: 3,
+    endConversationTool: 'approve_content',
+  },
+  tags: ['evaluation', 'content'],
+});
+```
+
+## Execution Details
+
+### Message Role Encoding
+
+In `dual_ai` agents, message roles encode side information:
+
+| Side | Stored Role | From Own Perspective | From Other's Perspective |
+|------|-------------|---------------------|--------------------------|
+| Side A | `assistant` | `assistant` | `user` |
+| Side B | `user` | `assistant` | `user` |
+
+**How it works:**
+- Each AI sees its own messages as `assistant` role
+- Each AI sees the other's messages as `user` role
+- Stored roles remain consistent for replay
+
+### Execution Flow
+
+#### ai_human Execution
+
+```
+1. User sends message
+   ↓
+2. Side A (AI) executes turn
+   - Load prompt
+   - Build context
+   - Call LLM
+   - Execute tools (if any)
+   - Check stop condition
+   ↓
+3. Response returned to user
+   ↓
+4. Wait for next user message
+   ↓
+5. Repeat from step 2
+```
+
+#### dual_ai Execution
+
+```
+1. Initial trigger
+   ↓
+2. Side A executes turn
+   - Load prompt
+   - Build context
+   - Call LLM
+   - Execute tools
+   - Check stop condition
+   ↓
+3. If not stopped:
+   Side B executes turn
+   - Same process
+   ↓
+4. If not stopped:
+   Return to step 2
+   ↓
+5. Continue until:
+   - Side stops (maxTurns)
+   - Session ends (maxSessionTurns)
+   - endConversationTool called
+```
+
+## File Structure
+
+```
+agents/
+└── agents/
+    ├── support_agent.ts       # export default defineAgent({...})
+    ├── billing_specialist.ts  # export default defineAgent({...})
+    ├── debate_agent.ts        # export default defineAgent({...})
+    └── checkout_agent.ts      # export default defineAgent({...})
+```
+
+**Requirements:**
+- One agent per file
+- Default export required
+- Use snake_case for file names
+- No nested directories
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/core-concepts/agents">
+    Learn agent fundamentals
+  </Card>
+
+  <Card title="Prompts API" icon="file-lines" href="/api-reference/prompts">
+    Configure prompts for agents
+  </Card>
+
+  <Card title="Tools API" icon="wrench" href="/api-reference/tools">
+    Create tools for agents
+  </Card>
+
+  <Card title="Hooks API" icon="webhook" href="/api-reference/hooks">
+    Intercept agent execution
+  </Card>
+</CardGroup>

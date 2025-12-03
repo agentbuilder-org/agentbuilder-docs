@@ -1,0 +1,526 @@
+---
+title: 'Tools'
+description: 'Extend AI capabilities with custom functions, sub-prompts, and agent handoffs'
+---
+
+## What Are Tools?
+
+Tools are callable capabilities that extend what AI agents can do beyond generating text. They allow agents to:
+
+- **Execute code**: Run custom business logic
+- **Access data**: Query databases and APIs
+- **Perform actions**: Create records, send emails, trigger workflows
+- **Call other AI**: Invoke sub-prompts or hand off to specialized agents
+
+<Note>
+In AgentBuilder, "tools" includes three types: function tools (custom code), prompt tools (sub-prompts), and agent tools (handoffs). All appear to the LLM as functions it can call.
+</Note>
+
+## Why Use Tools?
+
+Tools bridge the gap between language models and the real world:
+
+- **Action-oriented**: LLMs can perform concrete actions, not just talk
+- **Data access**: Agents can retrieve real-time information
+- **Modular**: Reusable capabilities across agents
+- **Type-safe**: Zod schemas validate inputs
+- **Composable**: Tools can call other tools
+
+## Quick Start
+
+Create your first tool in `agents/tools/search_database.ts`:
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Search the customer database for matching records',
+  z.object({
+    query: z.string().describe('Search query'),
+    limit: z.number().optional().default(10).describe('Maximum results'),
+  }),
+  async (flow, args) => {
+    const results = await searchDatabase(args.query, args.limit);
+
+    return {
+      status: 'success',
+      content: [{ type: 'text', text: JSON.stringify(results) }],
+    };
+  }
+);
+```
+
+<Check>
+That's it! Your tool is now available to any prompt that includes it in its `tools` array. The framework auto-discovers it from the `agents/tools/` directory.
+</Check>
+
+## Tool Types
+
+AgentBuilder supports three types of tools that all appear the same to LLMs:
+
+<CardGroup cols={3}>
+  <Card title="Function Tools" icon="code">
+    Custom TypeScript functions
+
+    **Defined in:** `agents/tools/`
+
+    **Best for:**
+    - Database queries
+    - API calls
+    - File operations
+    - Business logic
+  </Card>
+
+  <Card title="Prompt Tools" icon="wand-magic-sparkles">
+    Other prompts called as sub-prompts
+
+    **Defined in:** `agents/prompts/` with `exposeAsTool: true`
+
+    **Best for:**
+    - Specialized analysis
+    - Content generation
+    - Data summarization
+    - Validation tasks
+  </Card>
+
+  <Card title="Agent Tools" icon="robot">
+    Full agents for handoffs
+
+    **Defined in:** `agents/agents/` with `exposeAsTool: true`
+
+    **Best for:**
+    - Specialist routing
+    - Complex workflows
+    - Domain expertise
+    - Multi-turn tasks
+  </Card>
+</CardGroup>
+
+### How They Work Together
+
+```typescript
+// Function tool: agents/tools/lookup_customer.ts
+export default defineTool(
+  'Look up customer by ID',
+  z.object({ customerId: z.string() }),
+  async (flow, args) => {
+    const customer = await db.getCustomer(args.customerId);
+    return { status: 'success', content: [{ type: 'text', text: JSON.stringify(customer) }] };
+  }
+);
+
+// Prompt tool: agents/prompts/summarizer.ts
+export default definePrompt({
+  name: 'summarizer',
+  exposeAsTool: true,
+  toolDescription: 'Summarize text into key points',
+  prompt: 'You are an expert summarizer...',
+  model: 'gpt-4o',
+  requiredSchema: z.object({
+    text: z.string().describe('Text to summarize'),
+  }),
+});
+
+// Agent tool: agents/agents/billing_specialist.ts
+export default defineAgent({
+  name: 'billing_specialist',
+  exposeAsTool: true,
+  toolDescription: 'Hand off billing issues to specialist',
+  sideA: { prompt: 'billing_expert' },
+});
+
+// Use all three in a prompt
+export default definePrompt({
+  name: 'support_router',
+  tools: [
+    'lookup_customer',      // Function tool
+    'summarizer',           // Prompt tool
+    'billing_specialist',   // Agent tool
+  ],
+  // ...
+});
+```
+
+## FlowState Context
+
+Every tool receives a `FlowState` object providing execution context:
+
+```typescript
+defineTool(
+  'My tool',
+  z.object({ input: z.string() }),
+  async (flow, args) => {
+    // Access execution context
+    console.log('Thread ID:', flow.threadId);
+    console.log('Turn:', flow.turnCount);
+    console.log('Agent:', flow.agentConfig.name);
+
+    // Access storage
+    const result = await flow.storage.sql.exec('SELECT * FROM data WHERE id = ?', args.input);
+
+    // Access environment
+    const apiKey = flow.env.MY_API_KEY;
+
+    return { status: 'success', content: [{ type: 'text', text: 'Done' }] };
+  }
+);
+```
+
+<Info>
+FlowState gives tools access to thread storage, environment bindings, message history, and execution state. See the [FlowState documentation](/core-concepts/flowstate) for details.
+</Info>
+
+## Input Validation with Zod
+
+Tools use Zod schemas to validate arguments:
+
+```typescript
+const args = z.object({
+  // Required string
+  query: z.string().describe('Search query'),
+
+  // Optional with default
+  limit: z.number().optional().default(10).describe('Max results'),
+
+  // Enum
+  format: z.enum(['json', 'text', 'markdown']).describe('Output format'),
+
+  // Nested object
+  filters: z.object({
+    category: z.string().optional(),
+    minPrice: z.number().optional(),
+  }).optional().describe('Filter options'),
+
+  // Array
+  tags: z.array(z.string()).optional().describe('Filter by tags'),
+});
+```
+
+<Warning>
+Always use `.describe()` on parameters! These descriptions help LLMs understand how to use your tools correctly.
+</Warning>
+
+## Tool Results
+
+Tools return a `CallToolResult` object:
+
+```typescript
+interface CallToolResult {
+  status: 'success' | 'error';
+  content: Array<{
+    type: 'text' | 'image' | 'document';
+    text?: string;
+    source?: {
+      type: 'url' | 'base64';
+      media_type?: string;
+      data: string;
+    };
+  }>;
+}
+```
+
+### Common Patterns
+
+**Text Result**
+```typescript
+return {
+  status: 'success',
+  content: [{ type: 'text', text: 'Operation completed successfully' }],
+};
+```
+
+**JSON Data**
+```typescript
+return {
+  status: 'success',
+  content: [{ type: 'text', text: JSON.stringify({ id: '123', name: 'John' }) }],
+};
+```
+
+**Error Handling**
+```typescript
+return {
+  status: 'error',
+  content: [{ type: 'text', text: 'Failed to find user: User not found' }],
+};
+```
+
+## Common Use Cases
+
+### Database Query Tool
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Look up customer information by ID or email',
+  z.object({
+    customerId: z.string().optional().describe('Customer ID'),
+    email: z.string().email().optional().describe('Customer email'),
+  }),
+  async (flow, args) => {
+    const db = flow.env.DB;
+
+    let customer;
+    if (args.customerId) {
+      customer = await db.prepare('SELECT * FROM customers WHERE id = ?')
+        .bind(args.customerId).first();
+    } else {
+      customer = await db.prepare('SELECT * FROM customers WHERE email = ?')
+        .bind(args.email).first();
+    }
+
+    if (!customer) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: 'Customer not found' }],
+      };
+    }
+
+    return {
+      status: 'success',
+      content: [{ type: 'text', text: JSON.stringify(customer) }],
+    };
+  }
+);
+```
+
+### API Integration Tool
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Fetch current weather for a city',
+  z.object({
+    city: z.string().describe('City name'),
+    units: z.enum(['metric', 'imperial']).default('metric'),
+  }),
+  async (flow, args) => {
+    const apiKey = flow.env.WEATHER_API_KEY;
+
+    try {
+      const response = await fetch(
+        `https://api.weather.com/v1/current?city=${args.city}&units=${args.units}&key=${apiKey}`
+      );
+
+      if (!response.ok) {
+        return {
+          status: 'error',
+          content: [{ type: 'text', text: `Weather API error: ${response.status}` }],
+        };
+      }
+
+      const data = await response.json();
+
+      return {
+        status: 'success',
+        content: [{
+          type: 'text',
+          text: `Weather in ${args.city}: ${data.temperature}°, ${data.conditions}`,
+        }],
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: `Failed to fetch weather: ${error.message}` }],
+      };
+    }
+  }
+);
+```
+
+### Tool Chaining
+
+Use `queueTool` to chain multiple tools:
+
+```typescript
+import { defineTool, queueTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Process order and queue follow-up tasks',
+  z.object({
+    orderId: z.string().describe('Order ID'),
+  }),
+  async (flow, args) => {
+    const order = await validateOrder(args.orderId);
+
+    if (!order.valid) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: 'Order validation failed' }],
+      };
+    }
+
+    // Queue additional tools to execute after this one
+    queueTool(flow.rootState, 'charge_payment', {
+      orderId: args.orderId,
+      amount: order.total,
+    });
+
+    queueTool(flow.rootState, 'send_confirmation_email', {
+      userId: order.userId,
+      orderId: args.orderId,
+    });
+
+    return {
+      status: 'success',
+      content: [{ type: 'text', text: `Order ${args.orderId} queued for processing` }],
+    };
+  }
+);
+```
+
+## FlowState Utilities
+
+AgentBuilder provides utility functions for tools:
+
+<AccordionGroup>
+  <Accordion title="queueTool" icon="list">
+    Queue another tool to execute after the current one
+
+    ```typescript
+    queueTool(flow.rootState, 'other_tool', { param: 'value' });
+    ```
+  </Accordion>
+
+  <Accordion title="injectMessage" icon="message">
+    Add a message to conversation without triggering execution
+
+    ```typescript
+    await injectMessage(flow, {
+      role: 'system',
+      content: 'Important context update',
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="getMessages" icon="messages">
+    Retrieve message history
+
+    ```typescript
+    const messages = await getMessages(flow, 20);
+    ```
+  </Accordion>
+
+  <Accordion title="emitThreadEvent" icon="broadcast-tower">
+    Send custom events to frontend
+
+    ```typescript
+    emitThreadEvent(flow, 'progress', {
+      step: 3,
+      total: 10,
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+See the [FlowState API Reference](/api-reference/flowstate) for complete details.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Write Clear Descriptions" icon="file-alt">
+    Tool descriptions help LLMs understand when to use each tool:
+
+    ✅ **Good:**
+    ```typescript
+    defineTool(
+      'Search the knowledge base for product documentation, FAQs, and troubleshooting guides. Returns relevant articles sorted by relevance.',
+      // ...
+    );
+    ```
+
+    ❌ **Avoid:**
+    ```typescript
+    defineTool('Search stuff', /* ... */);
+    ```
+  </Accordion>
+
+  <Accordion title="Describe All Parameters" icon="list">
+    Use `.describe()` on every parameter:
+
+    ```typescript
+    z.object({
+      query: z.string().describe('Search query - supports partial matches'),
+      category: z.string().optional().describe('Product category filter'),
+      minPrice: z.number().optional().describe('Minimum price in USD'),
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully" icon="shield">
+    Return errors as tool results, don't throw:
+
+    ```typescript
+    try {
+      const result = await riskyOperation(args);
+      return {
+        status: 'success',
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: `Operation failed: ${error.message}` }],
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use snake_case Names" icon="keyboard">
+    File names should use snake_case:
+
+    ✅ **Good:** `search_database.ts`, `create_ticket.ts`
+
+    ❌ **Avoid:** `SearchDatabase.ts`, `createTicket.ts`
+  </Accordion>
+
+  <Accordion title="Keep Tools Focused" icon="bullseye">
+    Each tool should do one thing well:
+
+    ✅ **Good:**
+    - `lookup_customer.ts` - Just lookup
+    - `update_customer.ts` - Just update
+    - `delete_customer.ts` - Just delete
+
+    ❌ **Avoid:**
+    - `customer_manager.ts` - Does everything
+  </Accordion>
+
+  <Accordion title="Use rootState for Queueing" icon="sitemap">
+    When queueing tools from sub-prompts, use `flow.rootState`:
+
+    ```typescript
+    // Correct
+    queueTool(flow.rootState, 'next_tool', args);
+
+    // Incorrect (may not work in sub-prompts)
+    queueTool(flow, 'next_tool', args);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api-reference/tools">
+    View complete tool API specification
+  </Card>
+
+  <Card title="FlowState" icon="circle-nodes" href="/core-concepts/flowstate">
+    Learn about execution context and utilities
+  </Card>
+
+  <Card title="Prompts" icon="file-lines" href="/core-concepts/prompts">
+    Configure prompts that use tools
+  </Card>
+
+  <Card title="Examples" icon="lightbulb" href="/examples/tools">
+    Explore real-world tool patterns
+  </Card>
+</CardGroup>

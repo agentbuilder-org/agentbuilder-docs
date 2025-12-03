@@ -1,0 +1,571 @@
+---
+title: 'defineModel'
+description: 'Complete API specification for defining LLM model configurations'
+---
+
+## Overview
+
+The `defineModel` function creates LLM model configurations that specify provider, model ID, fallback models, and pricing for Standard Agents.
+
+```typescript
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'gpt-4o',
+  provider: 'openai',
+  model: 'gpt-4o',
+  inputPrice: 2.5,
+  outputPrice: 10,
+});
+```
+
+## Configuration Options
+
+<ResponseField name="name" type="string" required>
+  Unique identifier for this model configuration. Used to reference the model in prompts. Use snake_case or kebab-case.
+
+  ```typescript
+  name: 'gpt-4o'
+  ```
+</ResponseField>
+
+<ResponseField name="provider" type="'openai' | 'anthropic' | 'openrouter' | 'google'" required>
+  LLM provider for API requests.
+
+  | Provider | Value | API Key Environment Variable |
+  |----------|-------|------------------------------|
+  | OpenAI | `'openai'` | `OPENAI_API_KEY` |
+  | Anthropic | `'anthropic'` | `ANTHROPIC_API_KEY` |
+  | OpenRouter | `'openrouter'` | `OPENROUTER_API_KEY` |
+  | Google | `'google'` | `GOOGLE_API_KEY` |
+
+  ```typescript
+  provider: 'openai'
+  ```
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  The actual model ID sent to the provider API. Format varies by provider.
+
+  **Examples by provider:**
+
+  | Provider | Example Model IDs |
+  |----------|-------------------|
+  | OpenAI | `'gpt-4o'`, `'gpt-4-turbo'`, `'gpt-3.5-turbo'`, `'o1-mini'` |
+  | Anthropic | `'claude-3-opus-20240229'`, `'claude-3-sonnet-20240229'`, `'claude-3-haiku-20240307'` |
+  | OpenRouter | `'openai/gpt-4o'`, `'anthropic/claude-3-opus'`, `'google/gemini-pro'` |
+  | Google | `'gemini-1.5-pro'`, `'gemini-1.5-flash'`, `'gemini-pro'` |
+
+  ```typescript
+  model: 'gpt-4o'
+  ```
+</ResponseField>
+
+<ResponseField name="fallbacks" type="string[]">
+  Array of model names to try if this model fails. Fallbacks are tried in order after the primary model fails (2 attempts each).
+
+  ```typescript
+  fallbacks: ['claude-sonnet', 'gemini-pro']
+  ```
+
+  **Fallback behavior:**
+  1. Primary model tried 2 times
+  2. First fallback tried 2 times
+  3. Second fallback tried 2 times
+  4. Continue until success or all fallbacks exhausted
+</ResponseField>
+
+<ResponseField name="includedProviders" type="string[]">
+  Provider prefixes for OpenRouter routing. Only applicable when provider is `'openrouter'`.
+
+  ```typescript
+  includedProviders: ['anthropic']
+  ```
+
+  This tells OpenRouter to prefer specific providers when routing requests.
+</ResponseField>
+
+<ResponseField name="inputPrice" type="number">
+  Cost per 1 million input tokens in USD. Used for cost tracking.
+
+  ```typescript
+  inputPrice: 2.5  // $2.50 per 1M tokens
+  ```
+</ResponseField>
+
+<ResponseField name="outputPrice" type="number">
+  Cost per 1 million output tokens in USD. Used for cost tracking.
+
+  ```typescript
+  outputPrice: 10  // $10 per 1M tokens
+  ```
+</ResponseField>
+
+<ResponseField name="cachedPrice" type="number">
+  Cost per 1 million cached tokens in USD. Reduced pricing for prompt caching features (Anthropic, OpenAI).
+
+  ```typescript
+  cachedPrice: 1.25  // $1.25 per 1M cached tokens
+  ```
+</ResponseField>
+
+## Provider-Specific Examples
+
+### OpenAI Models
+
+<Tabs>
+  <Tab title="GPT-4o">
+    ```typescript agents/models/gpt_4o.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'gpt-4o',
+      provider: 'openai',
+      model: 'gpt-4o',
+      inputPrice: 2.5,
+      outputPrice: 10,
+    });
+    ```
+  </Tab>
+  <Tab title="GPT-4o Mini">
+    ```typescript agents/models/gpt_4o_mini.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'gpt-4o-mini',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      inputPrice: 0.15,
+      outputPrice: 0.60,
+    });
+    ```
+  </Tab>
+  <Tab title="o1-mini">
+    ```typescript agents/models/o1_mini.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'o1-mini',
+      provider: 'openai',
+      model: 'o1-mini',
+      inputPrice: 3,
+      outputPrice: 12,
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Anthropic Models
+
+<Tabs>
+  <Tab title="Claude 4 Sonnet">
+    ```typescript agents/models/claude_sonnet.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'claude-sonnet',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      inputPrice: 3,
+      outputPrice: 15,
+    });
+    ```
+  </Tab>
+  <Tab title="Claude 3 Opus">
+    ```typescript agents/models/claude_opus.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'claude-opus',
+      provider: 'anthropic',
+      model: 'claude-3-opus-20240229',
+      inputPrice: 15,
+      outputPrice: 75,
+    });
+    ```
+  </Tab>
+  <Tab title="Claude 3 Haiku">
+    ```typescript agents/models/claude_haiku.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'claude-haiku',
+      provider: 'anthropic',
+      model: 'claude-3-haiku-20240307',
+      inputPrice: 0.25,
+      outputPrice: 1.25,
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Google Models
+
+<Tabs>
+  <Tab title="Gemini 1.5 Pro">
+    ```typescript agents/models/gemini_pro.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'gemini-pro',
+      provider: 'google',
+      model: 'gemini-1.5-pro',
+      inputPrice: 1.25,
+      outputPrice: 5,
+    });
+    ```
+  </Tab>
+  <Tab title="Gemini 1.5 Flash">
+    ```typescript agents/models/gemini_flash.ts
+    import { defineModel } from '@standardagents/builder';
+
+    export default defineModel({
+      name: 'gemini-flash',
+      provider: 'google',
+      model: 'gemini-1.5-flash',
+      inputPrice: 0.075,
+      outputPrice: 0.30,
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### OpenRouter Models
+
+```typescript agents/models/openrouter_claude.ts
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'openrouter-claude',
+  provider: 'openrouter',
+  model: 'anthropic/claude-sonnet-4.5',
+  includedProviders: ['anthropic'],  // Prefer Anthropic providers
+});
+```
+
+## Fallback Configurations
+
+### Basic Fallback
+
+```typescript
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'primary-model',
+  provider: 'openai',
+  model: 'gpt-4o',
+  fallbacks: ['claude-sonnet', 'gemini-pro'],
+  inputPrice: 2.5,
+  outputPrice: 10,
+});
+```
+
+### Multi-Provider Resilience
+
+```typescript
+// Primary model
+export default defineModel({
+  name: 'resilient-primary',
+  provider: 'openai',
+  model: 'gpt-4o',
+  fallbacks: ['anthropic-fallback', 'google-fallback'],
+});
+
+// Anthropic fallback
+export default defineModel({
+  name: 'anthropic-fallback',
+  provider: 'anthropic',
+  model: 'claude-3-sonnet-20240229',
+});
+
+// Google fallback
+export default defineModel({
+  name: 'google-fallback',
+  provider: 'google',
+  model: 'gemini-1.5-pro',
+});
+```
+
+### Cost-Tiered Fallbacks
+
+```typescript
+// Start with cheapest, fallback to more expensive
+export default defineModel({
+  name: 'cost-optimized',
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  fallbacks: ['claude-haiku', 'gemini-flash', 'gpt-4o'],  // Last resort: expensive
+  inputPrice: 0.15,
+  outputPrice: 0.60,
+});
+```
+
+## Complete Examples
+
+### Production Configuration
+
+```typescript agents/models/production.ts
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'production',
+  provider: 'openai',
+  model: 'gpt-4o',
+  fallbacks: [
+    'claude-sonnet',      // Try Anthropic
+    'gemini-pro',         // Try Google
+    'openrouter-gpt',     // Try OpenRouter
+  ],
+  inputPrice: 2.5,
+  outputPrice: 10,
+  cachedPrice: 1.25,      // Enable prompt caching
+});
+```
+
+### Budget Configuration
+
+```typescript agents/models/budget.ts
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'budget',
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  fallbacks: ['claude-haiku', 'gemini-flash'],
+  inputPrice: 0.15,
+  outputPrice: 0.60,
+});
+```
+
+### High-Performance Configuration
+
+```typescript agents/models/high_performance.ts
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'high-performance',
+  provider: 'anthropic',
+  model: 'claude-3-opus-20240229',
+  fallbacks: ['gpt-4o'],
+  inputPrice: 15,
+  outputPrice: 75,
+});
+```
+
+## Type Definitions
+
+### ModelDefinition
+
+```typescript
+interface ModelDefinition<N extends string = string> {
+  /**
+   * Unique identifier for this model definition
+   * Used to reference this model in prompts
+   */
+  name: N;
+
+  /**
+   * LLM provider for API requests
+   */
+  provider: ModelProvider;
+
+  /**
+   * Actual model ID sent to the provider API
+   * Format varies by provider
+   */
+  model: string;
+
+  /**
+   * Optional provider prefixes for OpenRouter routing
+   * Only applicable when provider is 'openrouter'
+   */
+  includedProviders?: string[];
+
+  /**
+   * Fallback model names to try if this model fails
+   * Must reference other defined models by name
+   */
+  fallbacks?: StandardAgents.Models[];
+
+  /**
+   * Cost per 1 million input tokens in USD
+   * Used for cost tracking
+   */
+  inputPrice?: number;
+
+  /**
+   * Cost per 1 million output tokens in USD
+   * Used for cost tracking
+   */
+  outputPrice?: number;
+
+  /**
+   * Cost per 1 million cached tokens in USD
+   * Reduced pricing for prompt caching features
+   */
+  cachedPrice?: number;
+}
+```
+
+### ModelProvider
+
+```typescript
+type ModelProvider = 'openai' | 'openrouter' | 'anthropic' | 'google';
+```
+
+### Generated Types
+
+After defining models, Standard Agents generates the `StandardAgents.Models` type:
+
+```typescript
+// Auto-generated in virtual:@standardagents/builder/types
+declare namespace StandardAgents {
+  type Models = 'gpt-4o' | 'claude-sonnet' | 'gemini-pro' | /* ... */;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive Names">
+    ```typescript
+    // Good - clear and descriptive
+    defineModel({ name: 'gpt-4o', ... });
+    defineModel({ name: 'claude-sonnet-fast', ... });
+    defineModel({ name: 'budget-model', ... });
+
+    // Avoid - unclear
+    defineModel({ name: 'model1', ... });
+    defineModel({ name: 'm', ... });
+    ```
+  </Accordion>
+
+  <Accordion title="Configure Fallbacks for Production">
+    Always configure fallbacks for production deployments:
+
+    ```typescript
+    defineModel({
+      name: 'production-model',
+      provider: 'openai',
+      model: 'gpt-4o',
+      fallbacks: ['claude-sonnet', 'gemini-pro'],  // Multiple fallbacks
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Set Pricing for Cost Tracking">
+    Configure pricing to monitor costs:
+
+    ```typescript
+    defineModel({
+      name: 'tracked-model',
+      provider: 'openai',
+      model: 'gpt-4o',
+      inputPrice: 2.5,
+      outputPrice: 10,
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Match Provider Format">
+    Match the model ID format to the provider:
+
+    ```typescript
+    // OpenAI - simple model name
+    defineModel({ provider: 'openai', model: 'gpt-4o' });
+
+    // OpenRouter - provider/model format
+    defineModel({ provider: 'openrouter', model: 'openai/gpt-4o' });
+
+    // Anthropic - includes version date
+    defineModel({ provider: 'anthropic', model: 'claude-3-sonnet-20240229' });
+    ```
+  </Accordion>
+
+  <Accordion title="Organize by Purpose">
+    Structure your models directory by use case:
+
+    ```
+    agents/models/
+    ├── gpt_4o.ts           # Primary OpenAI model
+    ├── claude_sonnet.ts    # Primary Anthropic model
+    ├── budget_model.ts     # Cost-effective option
+    ├── fast_model.ts       # Low-latency option
+    └── fallback_model.ts   # Reliable fallback
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Configuration
+
+### Development
+
+```bash .dev.vars
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenRouter
+OPENROUTER_API_KEY=sk-or-...
+
+# Google
+GOOGLE_API_KEY=...
+```
+
+### Cloudflare Workers
+
+Add to `wrangler.jsonc` for development:
+
+```jsonc wrangler.jsonc
+{
+  "vars": {
+    "OPENAI_API_KEY": "...",
+    "ANTHROPIC_API_KEY": "..."
+  }
+}
+```
+
+Use secrets for production:
+
+```bash
+wrangler secret put OPENAI_API_KEY
+wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put OPENROUTER_API_KEY
+wrangler secret put GOOGLE_API_KEY
+```
+
+## File Structure
+
+```
+agents/
+└── models/
+    ├── gpt_4o.ts           # export default defineModel({...})
+    ├── claude_sonnet.ts    # export default defineModel({...})
+    ├── gemini_pro.ts       # export default defineModel({...})
+    └── budget.ts           # export default defineModel({...})
+```
+
+**Requirements:**
+- Use snake_case for file names: `gpt_4o.ts`, `claude_sonnet.ts`
+- One model per file
+- Default export required
+- File placed in `agents/models/` directory
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Models Overview" icon="brain" href="/core-concepts/models">
+    High-level model concepts
+  </Card>
+  <Card title="Prompts" icon="message" href="/api-reference/prompts">
+    Define prompts that use models
+  </Card>
+  <Card title="Agents" icon="robot" href="/api-reference/agents">
+    Configure agents with models
+  </Card>
+  <Card title="Examples" icon="sparkles" href="/examples">
+    See model configurations in action
+  </Card>
+</CardGroup>

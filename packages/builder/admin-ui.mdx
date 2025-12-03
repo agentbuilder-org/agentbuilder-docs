@@ -1,0 +1,531 @@
+---
+title: "Admin UI"
+description: "Built-in Vue 3 admin interface for testing, monitoring, and managing your AgentBuilder agents"
+---
+
+## Overview
+
+AgentBuilder includes a powerful admin UI built with Vue 3 that's bundled directly into the `@agentbuilder/vite` package. It provides a complete interface for testing agents, monitoring execution, and managing your agent configuration.
+
+<Card title="Access the Admin UI" icon="desktop">
+Start your development server and navigate to `/admin` to access the admin interface.
+```bash
+pnpm dev
+# Visit http://localhost:5173/admin
+```
+</Card>
+
+<Note>
+The admin UI is pre-built and served from the package's `client/` directory. No additional setup required.
+</Note>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Thread Testing" icon="comments">
+    Interactive chat interface for testing agents with real-time message streaming
+  </Card>
+  <Card title="Execution Logs" icon="file-lines">
+    Detailed logs of LLM requests, tool calls, and telemetry data
+  </Card>
+  <Card title="Agent Management" icon="robot">
+    View and configure agent definitions, prompts, and stop conditions
+  </Card>
+  <Card title="Cost Tracking" icon="dollar-sign">
+    Monitor token usage and costs per request
+  </Card>
+</CardGroup>
+
+## Main Sections
+
+### Dashboard
+
+The landing page provides an overview of your AgentBuilder application:
+
+- **System status** - Active threads, total messages, uptime
+- **Recent activity** - Latest threads and executions
+- **Quick actions** - Create new threads, test agents
+- **Warning banner** - Displays configuration issues (duplicate tool names, etc.)
+
+Access at: `/admin`
+
+### Threads
+
+List and manage all conversation threads:
+
+**Features:**
+- Thread list with agent name, user, and creation date
+- Search and filter threads
+- View full message history
+- Delete threads
+- Create new threads with any agent
+
+**Actions:**
+- Click a thread to view details
+- Use "New Thread" button to start a conversation
+- Delete button removes thread and all associated data
+
+Access at: `/admin/threads`
+
+### Thread Detail View
+
+Detailed view of a specific thread with three panes:
+
+<Tabs>
+  <Tab title="Messages">
+    **Message Timeline:**
+    - All messages with role indicators (user, assistant, tool)
+    - Tool call details with arguments and results
+    - Reasoning content (for o1/o3 models)
+    - Copy message content
+    - Timestamps with relative time
+
+    **Interactive Testing:**
+    - Send new messages to continue conversation
+    - Real-time streaming of responses
+    - Stop execution button during processing
+    - Error display for failed tool calls
+  </Tab>
+
+  <Tab title="Logs">
+    **Execution Logs:**
+    - LLM request details (model, provider, endpoint)
+    - Token usage (input, output, cached)
+    - Cost breakdown (input cost, output cost, total)
+    - Latency metrics (total, time to first token)
+    - Request/response bodies (expandable JSON)
+
+    **Log Entry Details:**
+    - Status code and finish reason
+    - Error messages and types
+    - Message history length at request time
+    - Tools available count
+    - Timestamps
+  </Tab>
+
+  <Tab title="Metadata">
+    **Thread Information:**
+    - Thread ID and creation date
+    - Associated agent
+    - User ID (if set)
+    - Tags (editable)
+    - Turn count
+    - Stopped status and reason
+
+    **Actions:**
+    - Edit tags
+    - Delete thread
+    - View raw thread data
+  </Tab>
+</Tabs>
+
+Access at: `/admin/threads/:id`
+
+### Agents
+
+View and manage agent configurations:
+
+**Agent List:**
+- All defined agents with type and title
+- Agent type indicator (ai_human, dual_ai)
+- Default prompt and model
+- Edit button for each agent
+
+**Agent Details Modal:**
+- Complete agent configuration
+- System prompts (Side A and Side B for dual_ai)
+- Continuation prompts
+- Stop conditions (returns_content or tool)
+- Stop tool specification
+- Available tools list
+- Exposed status (if agent can be called as a tool)
+
+**Key Information:**
+- Agent name (identifier)
+- Type (ai_human or dual_ai)
+- Default prompt reference
+- Default model reference
+- Tool availability
+
+Access at: `/admin/agents`
+
+### Prompts
+
+View and manage prompt configurations:
+
+**Prompt List:**
+- All defined prompts
+- Associated model
+- Tool count
+- Edit and test buttons
+
+**Prompt Details Modal:**
+- System prompt text (with syntax highlighting)
+- Model configuration
+- Available tools
+- Temperature, max tokens, top_p settings
+- Reasoning mode (for o1/o3)
+- JSON mode toggle
+- Exposed status
+
+**Prompt Editor:**
+- Full-screen prompt editor
+- Syntax highlighting
+- Variable interpolation preview
+- Save and test functionality
+
+Access at: `/admin/prompts`
+
+### Models
+
+View and manage LLM model configurations:
+
+**Model List:**
+- All defined models with provider
+- Pricing information (input/output per million tokens)
+- Status (enabled/disabled)
+- Edit button
+
+**Model Details Modal:**
+- Model identifier
+- Provider (OpenAI, Anthropic, Google, OpenRouter, xAI)
+- Input and output pricing
+- API endpoint (if custom)
+- Fallback model chain
+- Max tokens limit
+- Supports reasoning flag
+- Supports JSON mode flag
+
+**Fallback Configuration:**
+- View fallback models in order
+- Add/remove fallbacks
+- Reorder fallback priority
+
+Access at: `/admin/models`
+
+### Tools
+
+View all available tools (native, prompt, and agent):
+
+**Tool Types:**
+- **Native Tools** - TypeScript functions from `agentbuilder/tools/`
+- **Prompt Tools** - Exposed prompts that can be called as tools
+- **Agent Tools** - Exposed agents that can be called as tools
+
+**Tool Information:**
+- Tool name (snake_case identifier)
+- Description
+- Parameters schema (Zod schema displayed)
+- Source file location
+- Type indicator
+
+**Tool Details:**
+- Parameter definitions with types
+- Required vs optional parameters
+- Parameter descriptions
+- Return type information
+
+Access at: `/admin/tools`
+
+### Providers
+
+Manage LLM provider API keys:
+
+**Provider List:**
+- OpenAI
+- Anthropic
+- Google (Gemini)
+- OpenRouter
+- xAI (Grok)
+
+**Key Management:**
+- Add/update API keys
+- Test connection
+- View key status (configured/not configured)
+- Last used timestamp
+
+<Warning>
+API keys are stored in environment variables (`.dev.vars` or production secrets), not in the UI database. The UI only shows whether keys are configured.
+</Warning>
+
+Access at: `/admin/providers`
+
+### Users
+
+View and manage user records:
+
+**User List:**
+- All users with associated threads
+- Creation dates
+- Thread count per user
+- Delete button
+
+**User Actions:**
+- View threads for a specific user
+- Delete user (and optionally associated threads)
+- Create new user
+
+Access at: `/admin/users`
+
+### Settings
+
+Application-wide settings:
+
+**Configuration:**
+- Admin password (for authentication)
+- Encryption key management
+- Database connection details
+- Feature flags
+
+**System Information:**
+- AgentBuilder version
+- Cloudflare Workers information
+- Durable Object status
+
+Access at: `/admin/settings`
+
+### Test View
+
+Interactive testing interface for quick agent testing:
+
+**Features:**
+- Agent selector dropdown
+- Message input field
+- Real-time message streaming
+- Full message history display
+- Tool call visualization
+- Cost tracking per message
+- Stop execution button
+- Clear conversation button
+
+**Testing Workflow:**
+1. Select an agent from dropdown
+2. Enter a test message
+3. Click "Send" or press Enter
+4. View streaming response in real-time
+5. See tool calls as they execute
+6. Review costs and token usage
+
+Access at: `/admin/test`
+
+### Debug View
+
+Developer debugging tools:
+
+**Features:**
+- Raw API response viewer
+- Virtual module inspector (view generated modules)
+- WebSocket connection monitor
+- Request/response logger
+- State inspector
+
+Access at: `/admin/debug`
+
+## Authentication
+
+The admin UI requires authentication in production:
+
+**Login Process:**
+1. Navigate to `/admin`
+2. Enter admin password
+3. Session stored in localStorage
+4. Auto-logout after 24 hours
+
+**Configuration:**
+
+```bash
+# .dev.vars
+SUPER_ADMIN_PASSWORD=your-secure-password
+```
+
+<Warning>
+Always use a strong password in production. The admin UI has full access to all threads, messages, and configuration.
+</Warning>
+
+## Diagnostic Warnings
+
+The admin UI displays warnings at the top of the page for configuration issues:
+
+**Warning Types:**
+- **Duplicate tool names** - Tool/prompt/agent share the same name
+- **Invalid tool naming** - Tools not using snake_case
+- **Missing API keys** - Required provider keys not configured
+- **Schema mismatches** - Database schema version mismatch
+
+**Warning Banner:**
+- Appears at top of all admin pages
+- Dismissible per session
+- Color-coded by severity (yellow=warning, red=error)
+- Links to relevant documentation
+
+## Keyboard Shortcuts
+
+<AccordionGroup>
+  <Accordion title="Global Shortcuts">
+    - `Ctrl/Cmd + K` - Quick search (threads, agents, prompts)
+    - `Ctrl/Cmd + N` - New thread
+    - `Ctrl/Cmd + /` - Show keyboard shortcuts
+    - `Esc` - Close modal/dialog
+  </Accordion>
+
+  <Accordion title="Thread View Shortcuts">
+    - `Enter` - Send message (when input focused)
+    - `Ctrl/Cmd + Enter` - Send message with new line
+    - `Ctrl/Cmd + S` - Stop execution
+    - `↑` - Previous message in history
+    - `↓` - Next message in history
+  </Accordion>
+
+  <Accordion title="Code Editor Shortcuts">
+    - `Ctrl/Cmd + S` - Save
+    - `Ctrl/Cmd + F` - Find
+    - `Ctrl/Cmd + Z` - Undo
+    - `Ctrl/Cmd + Shift + Z` - Redo
+    - `Tab` - Indent
+    - `Shift + Tab` - Outdent
+  </Accordion>
+</AccordionGroup>
+
+## Dark Mode
+
+The admin UI automatically adapts to your system's dark mode preference.
+
+**Manual toggle:** Click the theme icon in the top-right corner to switch between light and dark modes.
+
+## Customization
+
+### Extending the Admin UI
+
+The admin UI is built with Vue 3 and can be extended:
+
+1. **Clone the package** - Fork `@agentbuilder/vite`
+2. **Edit UI files** - Modify components in `packages/vite/ui/src/`
+3. **Build UI** - Run `pnpm build:ui` in the package
+4. **Use custom build** - Link your local package
+
+### Custom API Routes
+
+Add custom endpoints that the admin UI can call:
+
+```typescript
+// agentbuilder/api/custom-stats.get.ts
+import { defineController } from '@agentbuilder/vite'
+
+export default defineController(async (request, env) => {
+  // Custom statistics endpoint
+  const stats = await calculateCustomStats(env)
+
+  return new Response(JSON.stringify(stats), {
+    headers: { 'Content-Type': 'application/json' }
+  })
+})
+```
+
+Access at: `http://localhost:5173/api/custom-stats`
+
+### Custom UI Components
+
+Create custom Vue components in your project and mount them:
+
+```typescript
+// agentbuilder/ui/CustomPanel.vue
+<template>
+  <div class="custom-panel">
+    <!-- Your custom UI -->
+  </div>
+</template>
+```
+
+Then register it with the admin router (requires UI extension).
+
+## Browser Support
+
+The admin UI supports:
+- Chrome/Edge (latest)
+- Firefox (latest)
+- Safari (latest)
+
+<Note>
+Mobile browsers are supported but the experience is optimized for desktop.
+</Note>
+
+## Performance Tips
+
+<CardGroup cols={2}>
+  <Card title="Limit message history" icon="filter">
+    Use pagination when viewing threads with >1000 messages
+  </Card>
+
+  <Card title="Close inactive tabs" icon="xmark">
+    WebSocket connections are per-tab. Close unused admin tabs.
+  </Card>
+
+  <Card title="Use log filtering" icon="magnifying-glass">
+    Filter logs by date or model to improve rendering performance
+  </Card>
+
+  <Card title="Clear old threads" icon="trash">
+    Periodically delete test threads to keep the UI responsive
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Admin UI not loading">
+    **Problem:** `/admin` returns 404
+
+    **Solutions:**
+    - Verify Vite dev server is running
+    - Check that `@agentbuilder/vite` is properly installed
+    - Ensure router is configured in server entry point
+    - Check browser console for errors
+  </Accordion>
+
+  <Accordion title="WebSocket connection failed">
+    **Problem:** Real-time updates not working
+
+    **Solutions:**
+    - Check that WebSocket upgrade is allowed
+    - Verify CORS configuration if cross-origin
+    - Check browser network tab for WebSocket errors
+    - Try refreshing the page
+  </Accordion>
+
+  <Accordion title="Threads not appearing">
+    **Problem:** Thread list is empty but threads exist
+
+    **Solutions:**
+    - Check DurableAgentBuilder is properly bound
+    - Verify thread metadata is stored
+    - Check browser console for API errors
+    - Try clearing localStorage and refreshing
+  </Accordion>
+
+  <Accordion title="Authentication loop">
+    **Problem:** Keeps asking for password
+
+    **Solutions:**
+    - Verify `SUPER_ADMIN_PASSWORD` is set
+    - Check localStorage is not disabled
+    - Clear browser cache and cookies
+    - Try incognito mode to rule out extensions
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Builder Overview" icon="cube" href="/packages/builder/overview">
+    Core framework documentation
+  </Card>
+  <Card title="Durable Objects" icon="database" href="/packages/builder/durable-objects">
+    Understanding thread storage
+  </Card>
+  <Card title="Testing Guide" icon="flask" href="/guides/testing">
+    Testing strategies for agents
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploying to production
+  </Card>
+</CardGroup>

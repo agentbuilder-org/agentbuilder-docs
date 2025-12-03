@@ -1,0 +1,526 @@
+---
+title: "@agentbuilder/react"
+description: "React hooks and components for AgentBuilder - connect to AI agent threads with real-time updates"
+---
+
+## Overview
+
+The `@agentbuilder/react` package provides React hooks and components for building UIs that connect to AgentBuilder threads. It handles real-time message streaming, custom event listening, and workblock transformation for tool visualization.
+
+<Card title="Key Features" icon="react">
+- Real-time WebSocket updates for live message streaming
+- Context-based architecture with `ThreadProvider`
+- Workblock transformation for UI-friendly tool displays
+- Custom event system for backend-to-frontend communication
+- TypeScript support with full type definitions
+- Works with any React framework (Next.js, Remix, Vite, etc.)
+</Card>
+
+## Installation
+
+```bash npm
+npm install @agentbuilder/react
+```
+
+```bash pnpm
+pnpm add @agentbuilder/react
+```
+
+```bash yarn
+yarn add @agentbuilder/react
+```
+
+## Quick Start
+
+```tsx
+import {
+  AgentBuilderProvider,
+  ThreadProvider,
+  useThread,
+  sendMessage,
+} from "@agentbuilder/react"
+
+function App() {
+  return (
+    <AgentBuilderProvider config={{ endpoint: "https://your-api.com" }}>
+      <ThreadProvider threadId="thread-123">
+        <ChatInterface />
+      </ThreadProvider>
+    </AgentBuilderProvider>
+  )
+}
+
+function ChatInterface() {
+  const messages = useThread()
+
+  const handleSend = async (text: string) => {
+    await sendMessage("thread-123", {
+      role: "user",
+      content: text,
+    })
+  }
+
+  return (
+    <div>
+      {messages.map((msg) => (
+        <div key={msg.id}>
+          <strong>{msg.role}:</strong> {msg.content}
+        </div>
+      ))}
+      <input onSubmit={(e) => handleSend(e.currentTarget.value)} />
+    </div>
+  )
+}
+```
+
+## Authentication
+
+The package reads authentication tokens from `localStorage`:
+
+```tsx
+// Set the token before using the hooks
+localStorage.setItem("agentbuilder_auth_token", "your-token-here")
+```
+
+All API requests and WebSocket connections will automatically include this token in the `Authorization` header.
+
+## Core Providers
+
+### AgentBuilderProvider
+
+Root provider that configures the API endpoint for all child components.
+
+```tsx
+<AgentBuilderProvider config={{ endpoint: "https://api.example.com" }}>
+  {children}
+</AgentBuilderProvider>
+```
+
+**Props:**
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `config.endpoint` | `string` | Yes | The API endpoint URL |
+| `children` | `ReactNode` | Yes | Child components |
+
+### ThreadProvider
+
+Establishes a WebSocket connection to a specific thread and provides context for child components.
+
+```tsx
+<ThreadProvider
+  threadId="thread-123"
+  preload={true}
+  live={true}
+  depth={0}
+  includeSilent={false}
+>
+  <ChatInterface />
+</ThreadProvider>
+```
+
+**Props:**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `threadId` | `string` | Required | The thread ID to connect to |
+| `preload` | `boolean` | `true` | Fetch existing messages on mount |
+| `live` | `boolean` | `true` | Enable WebSocket for live updates |
+| `depth` | `number` | `0` | Max message depth (0 = top-level only) |
+| `includeSilent` | `boolean` | `false` | Include silent messages |
+| `endpoint` | `string` | - | Override endpoint from AgentBuilderProvider |
+
+## Hooks
+
+### useThread
+
+Returns messages from the current thread context. Must be used within a `ThreadProvider`.
+
+```tsx
+import { useThread } from "@agentbuilder/react"
+
+function ChatMessages() {
+  const messages = useThread()
+
+  return (
+    <div>
+      {messages.map((msg) => (
+        <MessageBubble key={msg.id} message={msg} />
+      ))}
+    </div>
+  )
+}
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `useWorkblocks` | `boolean` | `true` | Transform tool calls into workblocks |
+
+**Example without workblocks:**
+
+```tsx
+// Get raw messages without workblock transformation
+const messages = useThread({ useWorkblocks: false })
+```
+
+### useThreadId
+
+Returns the current thread ID from context.
+
+```tsx
+import { useThreadId } from "@agentbuilder/react"
+
+function ThreadInfo() {
+  const threadId = useThreadId()
+  return <span>Thread: {threadId}</span>
+}
+```
+
+### onThreadEvent
+
+Hook to listen for custom events emitted by the backend via WebSocket.
+
+```tsx
+import { onThreadEvent } from "@agentbuilder/react"
+import { useCallback } from "react"
+
+function GamePreview() {
+  const [gameReady, setGameReady] = useState(false)
+
+  onThreadEvent('game_built', useCallback((data: { success: boolean }) => {
+    if (data.success) {
+      setGameReady(true)
+    }
+  }, []))
+
+  return gameReady ? <GameIframe /> : <LoadingSpinner />
+}
+```
+
+<Warning>
+Always wrap the callback in `useCallback` to prevent unnecessary re-subscriptions.
+</Warning>
+
+**Backend Integration:**
+
+Events are emitted from the backend using `emitThreadEvent()`:
+
+```typescript
+// In a tool or hook on the backend
+import { emitThreadEvent } from "@agentbuilder/vite"
+
+emitThreadEvent(flow, "game_built", { success: true })
+```
+
+### useThreadEvent
+
+State-based hook that returns the latest event data as React state.
+
+```tsx
+import { useThreadEvent } from "@agentbuilder/react"
+
+function ProgressIndicator() {
+  const progress = useThreadEvent<{ step: number; total: number }>("progress")
+
+  if (!progress) return null
+
+  return (
+    <div>
+      Step {progress.step} of {progress.total}
+    </div>
+  )
+}
+```
+
+<Accordion title="When to use onThreadEvent vs useThreadEvent">
+| Use Case | Hook |
+|----------|------|
+| Trigger side effects (fetch data, navigate) | `onThreadEvent` |
+| Display event data in JSX | `useThreadEvent` |
+| Need to react to every event | `onThreadEvent` |
+| Only care about latest value | `useThreadEvent` |
+</Accordion>
+
+## Functions
+
+### sendMessage
+
+Send a message to a thread. Works anywhere in your app (doesn't require being inside ThreadProvider).
+
+```tsx
+import { sendMessage } from "@agentbuilder/react"
+
+async function handleSend(content: string) {
+  await sendMessage("thread-123", {
+    role: "user",
+    content,
+  })
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Thread ID |
+| `payload` | `SendMessagePayload` | Message payload |
+| `options?` | `{ endpoint?: string }` | Optional endpoint override |
+
+**Payload:**
+
+```typescript
+interface SendMessagePayload {
+  role: "user" | "assistant"
+  content: string | null
+  silent?: boolean  // If true, message won't appear in UI
+}
+```
+
+### stopThread
+
+Cancel an in-flight thread execution.
+
+```tsx
+import { stopThread } from "@agentbuilder/react"
+
+async function handleStop() {
+  await stopThread("thread-123")
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | `string` | Thread ID to stop |
+| `options?` | `{ endpoint?: string }` | Optional endpoint override |
+
+## Workblocks
+
+Workblocks are a UI-friendly transformation of tool calls. When `useWorkblocks: true` (default), consecutive assistant messages with tool calls are grouped into workblocks.
+
+<Tabs>
+  <Tab title="Raw Messages">
+    ```
+    assistant (with tool_calls) → tool result → tool result → assistant (final)
+    ```
+  </Tab>
+  <Tab title="Transformed Workblocks">
+    ```
+    workblock {
+      workItems: [tool_call, tool_result, tool_call, tool_result]
+      status: 'completed' | 'pending' | 'failed'
+    } → assistant (final)
+    ```
+  </Tab>
+</Tabs>
+
+### WorkMessage Type
+
+```typescript
+interface WorkMessage {
+  id: string
+  type: "workblock"
+  content: string | null
+  reasoning_content?: string | null
+  workItems: WorkItem[]
+  status: "pending" | "completed" | "failed"
+  created_at: number
+}
+
+interface WorkItem {
+  id: string
+  type: "tool_call" | "tool_result"
+  name?: string
+  content: string | null
+  status?: "success" | "error" | null
+  tool_call_id?: string
+}
+```
+
+### Rendering Workblocks
+
+```tsx
+function MessageList() {
+  const messages = useThread()
+
+  return (
+    <>
+      {messages.map((msg) => {
+        if ("type" in msg && msg.type === "workblock") {
+          return <WorkBlockDisplay key={msg.id} workblock={msg} />
+        }
+        return <MessageBubble key={msg.id} message={msg} />
+      })}
+    </>
+  )
+}
+
+function WorkBlockDisplay({ workblock }: { workblock: WorkMessage }) {
+  return (
+    <div className={`workblock ${workblock.status}`}>
+      {workblock.workItems.map((item) => (
+        <div key={item.id}>
+          {item.type === "tool_call" ? `Calling ${item.name}...` : item.content}
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+## TypeScript Support
+
+The package is written in TypeScript and includes full type definitions.
+
+```tsx
+import type {
+  Message,
+  WorkMessage,
+  ThreadMessage,
+  SendMessagePayload,
+  UseThreadOptions,
+  ThreadProviderOptions,
+} from "@agentbuilder/react"
+```
+
+### Message Type
+
+```typescript
+interface Message {
+  id: string
+  role: "user" | "assistant" | "system" | "tool"
+  content: string | null
+  created_at: number // microseconds
+  reasoning_content?: string | null
+  silent?: boolean
+  depth?: number
+  parent_id?: string | null
+  tool_calls?: string | null      // JSON array
+  tool_call_id?: string | null
+  name?: string | null
+  status?: "pending" | "completed" | "failed"
+  tool_status?: "success" | "error" | null
+}
+```
+
+## Complete Example
+
+<Accordion title="View Complete Chat Interface Example">
+```tsx
+import { useState, useCallback } from "react"
+import {
+  AgentBuilderProvider,
+  ThreadProvider,
+  useThread,
+  useThreadId,
+  onThreadEvent,
+  sendMessage,
+  stopThread,
+} from "@agentbuilder/react"
+import type { ThreadMessage, Message, WorkMessage } from "@agentbuilder/react"
+
+function App() {
+  const [threadId, setThreadId] = useState<string | null>(null)
+
+  return (
+    <AgentBuilderProvider config={{ endpoint: "/api" }}>
+      {threadId ? (
+        <ThreadProvider threadId={threadId}>
+          <ChatInterface />
+        </ThreadProvider>
+      ) : (
+        <button onClick={() => createThread().then(setThreadId)}>
+          Start Chat
+        </button>
+      )}
+    </AgentBuilderProvider>
+  )
+}
+
+function ChatInterface() {
+  const threadId = useThreadId()
+  const messages = useThread({ useWorkblocks: true })
+  const [input, setInput] = useState("")
+
+  const isRunning = messages.some((m) => m.status === "pending")
+
+  const handleSend = async () => {
+    if (!input.trim() || isRunning) return
+    await sendMessage(threadId, { role: "user", content: input })
+    setInput("")
+  }
+
+  return (
+    <div>
+      <MessageList messages={messages} />
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyPress={(e) => e.key === "Enter" && handleSend()}
+        disabled={isRunning}
+      />
+      {isRunning ? (
+        <button onClick={() => stopThread(threadId)}>Stop</button>
+      ) : (
+        <button onClick={handleSend}>Send</button>
+      )}
+    </div>
+  )
+}
+
+function MessageList({ messages }: { messages: ThreadMessage[] }) {
+  return (
+    <div>
+      {messages.map((msg) => {
+        if ("type" in msg && msg.type === "workblock") {
+          return <WorkBlock key={msg.id} block={msg} />
+        }
+        const message = msg as Message
+        if (message.role === "tool") return null
+        return (
+          <div key={message.id} className={message.role}>
+            {message.content}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function WorkBlock({ block }: { block: WorkMessage }) {
+  return (
+    <div className={`workblock ${block.status}`}>
+      {block.workItems.map((item) => (
+        <div key={item.id}>
+          {item.type === "tool_call" ? (
+            <span>Tool: {item.name}</span>
+          ) : (
+            <span>{item.content}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/core/concepts">
+    Learn about agents, prompts, and tools
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/react">
+    Detailed API documentation
+  </Card>
+  <Card title="Builder Package" icon="cube" href="/packages/builder/overview">
+    Backend framework documentation
+  </Card>
+  <Card title="Examples" icon="lightbulb" href="/examples">
+    Browse example implementations
+  </Card>
+</CardGroup>

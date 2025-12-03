@@ -1,0 +1,303 @@
+---
+title: "@agentbuilder/cli"
+description: "Command-line tool for initializing and scaffolding AgentBuilder projects"
+---
+
+## Overview
+
+The `@agentbuilder/cli` package is a setup tool that simplifies initial AgentBuilder configuration by automatically detecting and modifying your `wrangler.jsonc` file to add the required Cloudflare Durable Object bindings.
+
+<Card title="What it does" icon="terminal">
+- Detects your `wrangler.jsonc` or `wrangler.json` file
+- Adds required Durable Object bindings (`AGENT_BUILDER_THREAD`, `AGENT_BUILDER`)
+- Configures Durable Object migrations
+- Scaffolds project directory structure with documentation
+</Card>
+
+<Note>
+This is a one-time setup tool. After initial configuration, you won't need to use it again.
+</Note>
+
+## Installation
+
+```bash npm
+npm install -D @agentbuilder/cli
+```
+
+```bash pnpm
+pnpm add -D @agentbuilder/cli
+```
+
+```bash yarn
+yarn add -D @agentbuilder/cli
+```
+
+## Commands
+
+### agentbuilder init
+
+Configures `wrangler.jsonc` with required Durable Object bindings.
+
+```bash
+pnpm exec agentbuilder init
+```
+
+**What it does:**
+
+1. Searches for `wrangler.jsonc` or `wrangler.json` in the current directory
+2. Adds `AGENT_BUILDER_THREAD` binding (DurableThread class)
+3. Adds `AGENT_BUILDER` binding (DurableAgentBuilder class)
+4. Adds Durable Object migrations array
+5. Updates both root and `env.test` configurations (if present)
+6. Preserves comments and formatting (JSONC compatible)
+
+**Example output:**
+
+```
+✓ Found configuration: wrangler.jsonc
+ℹ Added AGENT_BUILDER_THREAD binding
+ℹ Added AGENT_BUILDER binding
+ℹ Added Durable Object migrations
+✓ Configuration updated successfully!
+
+Next steps:
+1. Create your agent definitions in agentbuilder/agents/
+2. Start your development server
+```
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Overwrite existing AgentBuilder configuration |
+
+### agentbuilder scaffold
+
+Creates the AgentBuilder directory structure with documentation files.
+
+```bash
+pnpm exec agentbuilder scaffold
+```
+
+**What it creates:**
+
+```
+agentbuilder/
+├── tools/
+│   └── CLAUDE.md
+├── hooks/
+│   └── CLAUDE.md
+└── api/
+    └── CLAUDE.md
+```
+
+Each directory includes a `CLAUDE.md` file with documentation about how to use that directory.
+
+## Configuration Details
+
+### Durable Object Bindings
+
+The `init` command adds the following to your `wrangler.jsonc`:
+
+```jsonc
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT_BUILDER_THREAD",
+        "class_name": "DurableThread"
+      },
+      {
+        "name": "AGENT_BUILDER",
+        "class_name": "DurableAgentBuilder"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DurableThread", "DurableAgentBuilder"]
+    }
+  ]
+}
+```
+
+### Test Environment
+
+If your `wrangler.jsonc` has an `env.test` configuration, the CLI will replicate the same bindings and migrations there automatically.
+
+## TypeScript Types
+
+After running `agentbuilder init`, regenerate your worker types to get proper TypeScript support:
+
+```bash
+pnpm cf-typegen
+```
+
+This will update your `worker-configuration.d.ts` file with:
+
+```typescript
+interface Env {
+  AGENT_BUILDER_THREAD: DurableObjectNamespace<DurableThread>;
+  AGENT_BUILDER: DurableObjectNamespace<DurableAgentBuilder>;
+}
+```
+
+## Manual Configuration
+
+If you prefer to configure manually instead of using the CLI, add the bindings shown above to your `wrangler.jsonc` file.
+
+<Accordion title="View complete manual configuration example">
+```jsonc
+{
+  "name": "my-agentbuilder-app",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT_BUILDER_THREAD",
+        "class_name": "DurableThread",
+        "script_name": "my-agentbuilder-app"
+      },
+      {
+        "name": "AGENT_BUILDER",
+        "class_name": "DurableAgentBuilder",
+        "script_name": "my-agentbuilder-app"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DurableThread", "DurableAgentBuilder"]
+    }
+  ],
+
+  "env": {
+    "test": {
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "AGENT_BUILDER_THREAD",
+            "class_name": "DurableThread",
+            "script_name": "my-agentbuilder-app"
+          },
+          {
+            "name": "AGENT_BUILDER",
+            "class_name": "DurableAgentBuilder",
+            "script_name": "my-agentbuilder-app"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+</Accordion>
+
+## Complete Workflow
+
+<Steps>
+  <Step title="Install AgentBuilder packages">
+    ```bash
+    pnpm add @agentbuilder/vite
+    pnpm add -D @agentbuilder/cli
+    ```
+  </Step>
+
+  <Step title="Initialize configuration">
+    ```bash
+    pnpm exec agentbuilder init
+    ```
+  </Step>
+
+  <Step title="Scaffold project structure">
+    ```bash
+    pnpm exec agentbuilder scaffold
+    ```
+  </Step>
+
+  <Step title="Generate TypeScript types">
+    ```bash
+    pnpm cf-typegen
+    ```
+  </Step>
+
+  <Step title="Start development server">
+    ```bash
+    pnpm dev
+    ```
+  </Step>
+</Steps>
+
+## Implementation Details
+
+### CLI Framework
+
+The CLI uses:
+- **commander** for argument parsing and command routing
+- **jsonc-parser** for parsing and modifying JSON with comments
+- **chalk** for colored terminal output
+
+### Logging
+
+The CLI provides colored output for better readability:
+- ✓ Green for success messages
+- ✗ Red for errors
+- ⚠ Yellow for warnings
+- ℹ Blue for informational messages
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No wrangler config found">
+    **Problem:** CLI can't find `wrangler.jsonc` or `wrangler.json`
+
+    **Solution:** Create a `wrangler.jsonc` file in your project root first:
+    ```bash
+    touch wrangler.jsonc
+    ```
+
+    Then run `agentbuilder init` again.
+  </Accordion>
+
+  <Accordion title="Configuration already exists">
+    **Problem:** Durable Object bindings are already configured
+
+    **Solution:** Use the `--force` flag to overwrite:
+    ```bash
+    pnpm exec agentbuilder init --force
+    ```
+  </Accordion>
+
+  <Accordion title="Types not working after init">
+    **Problem:** TypeScript doesn't recognize the Durable Object bindings
+
+    **Solution:** Regenerate types:
+    ```bash
+    pnpm cf-typegen
+    ```
+
+    Then restart your TypeScript language server.
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Builder Package" icon="cube" href="/packages/builder/overview">
+    Core framework documentation
+  </Card>
+  <Card title="Durable Objects" icon="database" href="/packages/builder/durable-objects">
+    Learn about Durable Objects
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete setup guide
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Advanced configuration options
+  </Card>
+</CardGroup>

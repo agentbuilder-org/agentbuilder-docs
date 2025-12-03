@@ -1,0 +1,359 @@
+---
+title: 'Installation'
+description: 'Get Standard Agents up and running in your project'
+---
+
+# Installation Guide
+
+This guide will walk you through setting up Standard Agents in your Cloudflare Workers project.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    Version 20.19.0+ or 22.12.0+
+  </Card>
+  <Card title="Cloudflare Account" icon="cloud">
+    With Workers and D1 enabled
+  </Card>
+  <Card title="Wrangler CLI" icon="terminal">
+    Cloudflare's command-line tool
+  </Card>
+  <Card title="Package Manager" icon="box">
+    pnpm, npm, or yarn
+  </Card>
+</CardGroup>
+
+<Warning>
+Standard Agents requires a Cloudflare Workers Paid plan ($5/month) for Durable Objects.
+</Warning>
+
+## Step 1: Install Standard Agents
+
+Add the framework to your project:
+
+<CodeGroup>
+```bash pnpm
+pnpm add @standardagents/builder
+```
+
+```bash npm
+npm install @standardagents/builder
+```
+
+```bash yarn
+yarn add @standardagents/builder
+```
+</CodeGroup>
+
+## Step 2: Initialize Configuration
+
+Run the initialization command to configure your project:
+
+```bash
+pnpm exec agentbuilder init
+```
+
+This command will:
+- Detect your `wrangler.jsonc` or `wrangler.json` file
+- Add required Durable Object bindings
+- Configure D1 database bindings (optional)
+- Set up both production and test environments
+
+<Accordion title="What gets added to wrangler.jsonc?">
+```jsonc
+{
+  "d1_databases": [{
+    "binding": "AGENT_BUILDER_DB",
+    "database_name": "agents-db",
+    "database_id": "YOUR_DATABASE_ID_HERE",
+    "migrations_dir": "node_modules/@standardagents/builder/migrations"
+  }],
+  "durable_objects": {
+    "bindings": [{
+      "name": "AGENT_BUILDER_THREAD",
+      "class_name": "DurableThread"
+    }]
+  },
+  "migrations": [{
+    "tag": "v1",
+    "new_sqlite_classes": ["DurableThread"]
+  }]
+}
+```
+
+The CLI automatically adds these required bindings for Durable Objects and D1 database access.
+</Accordion>
+
+## Step 3: Create D1 Database
+
+Create a D1 database for metadata storage:
+
+```bash
+wrangler d1 create agents-db
+```
+
+This will output your database ID. Copy it and update the `database_id` field in your `wrangler.jsonc`:
+
+```jsonc
+{
+  "d1_databases": [{
+    "binding": "AGENT_BUILDER_DB",
+    "database_name": "agents-db",
+    "database_id": "abc123-your-actual-database-id-here", // Replace with your ID
+    "migrations_dir": "node_modules/@standardagents/builder/migrations"
+  }]
+}
+```
+
+<Info>
+If you skip this step, you can still use Standard Agents but agent configurations won't persist between deployments.
+</Info>
+
+## Step 4: Run Database Migrations
+
+Initialize the D1 database schema:
+
+```bash
+pnpm exec agentbuilder migrate
+```
+
+This creates the necessary tables for storing agent configurations, models, and providers.
+
+## Step 5: Create Server Entry Point
+
+Create `server/index.ts` as your Worker entry point:
+
+```typescript server/index.ts
+import { DurableThread } from '@standardagents/builder'
+import { router } from 'virtual:@standardagents/builder'
+
+export default {
+  async fetch(request, env) {
+    const response = await router(request, env)
+    return response ?? new Response(null, { status: 404 })
+  },
+} satisfies ExportedHandler<Env>
+
+// Export Durable Object class
+export { DurableThread }
+```
+
+<Accordion title="Understanding the entry point">
+- **`router`**: Virtual import that handles all Standard Agents routes
+- **`DurableThread`**: Durable Object class that manages conversation threads
+- **`satisfies ExportedHandler<Env>`**: Ensures type safety with Cloudflare bindings
+
+The router automatically handles:
+- Admin UI serving at `/`
+- API endpoints at `/api/*`
+- Thread endpoints at `/api/threads/:id/*`
+- WebSocket connections for streaming
+</Accordion>
+
+## Step 6: Configure Vite
+
+Create or update `vite.config.ts`:
+
+```typescript vite.config.ts
+import { defineConfig } from 'vite'
+import { agentbuilder } from '@standardagents/builder'
+import { cloudflare } from '@cloudflare/vite-plugin'
+
+export default defineConfig({
+  plugins: [
+    agentbuilder(),
+    cloudflare()
+  ]
+})
+```
+
+The `agentbuilder()` plugin:
+- Auto-discovers agents, prompts, models, and tools
+- Generates virtual module imports
+- Enables hot module replacement
+- Bundles the admin UI
+
+## Step 7: Configure Environment Variables
+
+Create `.dev.vars` for local development:
+
+```bash .dev.vars
+# LLM Provider API Keys (add the ones you need)
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
+
+# Optional: Admin UI password
+SUPER_ADMIN_PASSWORD=your-secure-password
+
+# Optional: Encryption key for sensitive data
+ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+<Warning>
+Never commit `.dev.vars` to version control. Add it to your `.gitignore` file.
+</Warning>
+
+For production, set these as secrets:
+
+```bash
+wrangler secret put OPENAI_API_KEY
+wrangler secret put ANTHROPIC_API_KEY
+# ... etc
+```
+
+## Step 8: Generate TypeScript Types
+
+Generate TypeScript definitions for Cloudflare bindings:
+
+```bash
+pnpm cf-typegen
+```
+
+This creates `worker-configuration.d.ts` with proper types for your `Env` interface:
+
+```typescript worker-configuration.d.ts
+interface Env {
+  AGENT_BUILDER_THREAD: DurableObjectNamespace<DurableThread>;
+  AGENT_BUILDER_DB: D1Database;
+  OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
+  // ... other environment variables
+}
+```
+
+## Step 9: Start Development Server
+
+Start the local development server:
+
+```bash
+pnpm dev
+```
+
+The server will start on `http://localhost:5176` (or another port if 5176 is in use).
+
+<Check>
+**Success!** You should now see the Standard Agents admin UI.
+</Check>
+
+## Step 10: Access Admin UI
+
+Open your browser to `http://localhost:5176`:
+
+<Steps>
+  <Step title="First Launch">
+    The admin UI will load and prompt you to configure your first agent
+  </Step>
+  <Step title="Create Models">
+    Add LLM models (GPT-4, Claude, etc.) with your API keys
+  </Step>
+  <Step title="Create Agents">
+    Define your first agent with prompts and tools
+  </Step>
+  <Step title="Test">
+    Start a test conversation to verify everything works
+  </Step>
+</Steps>
+
+## Optional: Scaffold Project Structure
+
+For a quick start with example files, run:
+
+```bash
+pnpm exec agentbuilder scaffold
+```
+
+This creates:
+
+```
+your-project/
+├── agents/
+│   ├── agents/     # Agent definitions
+│   ├── prompts/    # Prompt templates
+│   ├── models/     # Model configurations
+│   ├── tools/      # Custom tools
+│   ├── hooks/      # Lifecycle hooks
+│   └── api/        # Thread endpoints
+```
+
+Each directory includes a `CLAUDE.md` file with documentation and examples.
+
+## Deployment
+
+When you're ready to deploy to production:
+
+<Steps>
+  <Step title="Build">
+    ```bash
+    pnpm build
+    ```
+  </Step>
+  <Step title="Deploy">
+    ```bash
+    wrangler deploy
+    ```
+  </Step>
+  <Step title="Set Secrets">
+    ```bash
+    wrangler secret put OPENAI_API_KEY
+    wrangler secret put SUPER_ADMIN_PASSWORD
+    ```
+  </Step>
+  <Step title="Verify">
+    Visit your Workers URL to access the admin UI
+  </Step>
+</Steps>
+
+<Info>
+Your Workers URL will be: `https://your-worker-name.your-subdomain.workers.dev`
+</Info>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: Cannot find module 'virtual:@standardagents/builder'">
+    This happens if TypeScript types haven't been generated yet. Run:
+    ```bash
+    pnpm cf-typegen
+    ```
+    Then restart your TypeScript language server.
+  </Accordion>
+
+  <Accordion title="Error: Durable Object binding not found">
+    Make sure you ran `pnpm exec agentbuilder init` and that your `wrangler.jsonc` includes the required Durable Object bindings.
+  </Accordion>
+
+  <Accordion title="Admin UI shows blank page">
+    The UI assets need to be built. This happens automatically during `pnpm build`, but in development mode, make sure you're running `pnpm dev` from the root of your project.
+  </Accordion>
+
+  <Accordion title="Database migration errors">
+    If migrations fail, you may need to recreate your D1 database:
+    ```bash
+    wrangler d1 delete agents-db
+    wrangler d1 create agents-db
+    pnpm exec agentbuilder migrate
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/introduction/quick-start">
+    Build your first AI agent
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/introduction/architecture">
+    Learn how Standard Agents works
+  </Card>
+  <Card title="Creating Tools" icon="wrench" href="/core-concepts/tools">
+    Extend your agents with custom functions
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Explore the complete API
+  </Card>
+</CardGroup>

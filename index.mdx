@@ -1,97 +1,132 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Welcome to AgentBuilder"
+description: "Build production AI agents on Cloudflare Workers"
 ---
 
-## Setting up
+# AgentBuilder
 
-Get your documentation site up and running in minutes.
+Build production AI agents on Cloudflare's edge network with zero infrastructure.
+
+## What Is AgentBuilder?
+
+AgentBuilder is a framework for creating conversational AI agents that run globally on Cloudflare Workers. It provides everything you need to build, deploy, and manage AI agents at scale.
+
+<Columns cols={2}>
+  <Card
+    title="Durable Conversations"
+    icon="database"
+  >
+    Each thread backed by a Durable Object with persistent SQLite storage
+  </Card>
+  <Card
+    title="Edge Deployment"
+    icon="globe"
+  >
+    Run globally with &lt;50ms latency via Cloudflare Workers
+  </Card>
+  <Card
+    title="Custom Tools"
+    icon="wrench"
+  >
+    Extend agents with your own functions via simple file-based registration
+  </Card>
+  <Card
+    title="Admin UI"
+    icon="chart-line"
+  >
+    Built-in interface for configuring agents, models, and monitoring threads
+  </Card>
+</Columns>
+
+## Quick Start
+
+Get up and running in minutes:
 
 <Card
-  title="Start here"
+  title="Installation Guide"
   icon="rocket"
-  href="/quickstart"
+  href="/introduction/installation"
   horizontal
 >
-  Follow our three step quickstart guide.
+  Follow our guide to set up your first AgentBuilder project
 </Card>
 
-## Make it yours
+```bash
+# Install AgentBuilder
+pnpm add @agentbuilder/vite
 
-Design a docs site that looks great and empowers your users.
+# Initialize configuration
+pnpm exec agentbuilder init
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+# Start development server
+pnpm dev
+```
 
-## Create beautiful pages
+Open `http://localhost:5176` to access the admin UI.
 
-Everything you need to create world-class documentation.
+## Key Features
+
+<Accordion title="Zero Infrastructure">
+  No servers to manage - deploy with `wrangler deploy`. Everything runs on Cloudflare's global network.
+</Accordion>
+
+<Accordion title="Auto-Discovery">
+  Create tools, hooks, and endpoints by simply adding files. No manual registration required.
+</Accordion>
+
+<Accordion title="Type-Safe">
+  Full TypeScript support with auto-generated types for your Cloudflare bindings and tools.
+</Accordion>
+
+<Accordion title="Multi-Agent Support">
+  Build AI-Human conversations or Dual-AI debates with automatic turn management.
+</Accordion>
+
+## Explore the Documentation
 
 <Columns cols={2}>
   <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
+    title="Core Concepts"
+    icon="book"
+    href="/core-concepts/agents"
   >
-    Use MDX to style your docs pages.
+    Learn about agents, prompts, tools, and models
   </Card>
   <Card
-    title="Code samples"
+    title="API Reference"
     icon="code"
-    href="/essentials/code"
+    href="/api-reference/agents"
   >
-    Add sample code to demonstrate how to use your product.
+    Complete API documentation for all components
   </Card>
   <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
+    title="Packages"
+    icon="package"
+    href="/packages/builder/overview"
   >
-    Display images and other media.
+    Explore @agentbuilder/vite, /cli, and /react
   </Card>
   <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
+    title="Architecture"
+    icon="diagram-project"
+    href="/introduction/architecture"
   >
-    Write once and reuse across your docs.
+    Understand how AgentBuilder works under the hood
   </Card>
 </Columns>
 
-## Need inspiration?
+## How It Works
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+AgentBuilder leverages Cloudflare's primitives to deliver a seamless AI agent experience:
+
+- **Workers**: Serverless functions for routing and UI serving
+- **Durable Objects**: Stateful conversation threads with isolated SQLite databases
+- **D1**: Global metadata storage for agent configurations
+
+Each conversation thread is a Durable Object with its own SQLite instance storing message history, execution logs, tool call records, and conversation state.
+
+## Support
+
+AgentBuilder is proprietary software owned by FormKit Inc.
+
+For licensing inquiries: [enterprise@formkit.com](mailto:enterprise@formkit.com)

@@ -1,0 +1,448 @@
+---
+title: "@agentbuilder/vite"
+description: "Core framework for building AI agents on Cloudflare's edge network"
+---
+
+## Overview
+
+`@agentbuilder/vite` is the heart of the AgentBuilder framework, providing everything you need to build and deploy AI agents on Cloudflare Workers with Durable Objects. It includes the runtime, Vite plugin, built-in admin UI, and SDK helpers for defining agents, prompts, and tools.
+
+<Card title="Key Features" icon="cube">
+- **Vite plugin** for auto-discovery of agents, prompts, and tools
+- **Durable Objects** (DurableThread, DurableAgentBuilder) for stateful execution
+- **Flow engine** for agent orchestration with turn-based execution
+- **LLM request handler** with smart retry/fallback logic
+- **Tool executor** supporting native, prompt, and agent tools
+- **Built-in admin UI** (Vue 3 SPA) for testing and monitoring
+- **Multi-provider LLM support** (OpenAI, Anthropic, Google, OpenRouter)
+</Card>
+
+## Architecture
+
+### Distribution Model
+
+The package contains everything in one place:
+- **Runtime code** (`dist/index.js`) - Server components
+- **Vite plugin** (`dist/plugin.js`) - Development tooling
+- **Client assets** (`client/`) - Built admin UI
+
+Users install only this package. The UI is pre-bundled during package build.
+
+### Package Exports
+
+```json
+{
+  ".": {
+    "workerd": "./dist/index.js",      // Cloudflare Workers runtime
+    "import": "./dist/plugin.js",       // Vite plugin for dev
+    "default": "./dist/plugin.js"
+  },
+  "./runtime": "./dist/index.js",      // Explicit runtime import
+  "./client": "./client.d.ts"          // UI types
+}
+```
+
+## Installation
+
+```bash npm
+npm install @agentbuilder/vite
+```
+
+```bash pnpm
+pnpm add @agentbuilder/vite
+```
+
+```bash yarn
+yarn add @agentbuilder/vite
+```
+
+## Quick Start
+
+<Steps>
+  <Step title="Install the package">
+    ```bash
+    pnpm add @agentbuilder/vite
+    ```
+  </Step>
+
+  <Step title="Initialize configuration">
+    ```bash
+    pnpm exec agentbuilder init
+    ```
+  </Step>
+
+  <Step title="Create your first agent">
+    Create `agentbuilder/agents/my_agent.ts`:
+    ```typescript
+    import { defineAgent } from '@agentbuilder/vite'
+
+    export default defineAgent({
+      name: 'my_agent',
+      type: 'ai_human',
+      title: 'My First Agent',
+      defaultPrompt: 'my_prompt',
+      defaultModel: 'gpt-4o',
+    })
+    ```
+  </Step>
+
+  <Step title="Create a prompt">
+    Create `agentbuilder/prompts/my_prompt.ts`:
+    ```typescript
+    import { definePrompt } from '@agentbuilder/vite'
+
+    export default definePrompt({
+      name: 'my_prompt',
+      model: 'gpt-4o',
+      systemPrompt: 'You are a helpful assistant.',
+    })
+    ```
+  </Step>
+
+  <Step title="Start development server">
+    ```bash
+    pnpm dev
+    ```
+  </Step>
+</Steps>
+
+## Core Components
+
+### Vite Plugin
+
+The Vite plugin scans your project and generates virtual modules for your agents, prompts, tools, and API routes.
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { agentbuilder } from '@agentbuilder/vite'
+
+export default defineConfig({
+  plugins: [
+    agentbuilder({
+      agentsDir: 'agentbuilder/agents',
+      promptsDir: 'agentbuilder/prompts',
+      modelsDir: 'agentbuilder/models',
+      toolsDir: 'agentbuilder/tools',
+      hooksDir: 'agentbuilder/hooks',
+      apiDir: 'agentbuilder/api'
+    }),
+  ]
+})
+```
+
+**What it does:**
+- Scans configured directories for agent definitions
+- Generates virtual modules with dynamic imports
+- Handles HMR (Hot Module Replacement) for all configuration changes
+- Validates tool naming conventions (snake_case)
+
+### Durable Objects
+
+Two Durable Objects power the framework:
+
+<CardGroup cols={2}>
+  <Card title="DurableThread" icon="message">
+    Each thread is an isolated Durable Object with its own SQLite database for messages, logs, and execution state.
+  </Card>
+  <Card title="DurableAgentBuilder" icon="database">
+    Singleton Durable Object that manages thread/user metadata and the thread registry.
+  </Card>
+</CardGroup>
+
+Learn more in the [Durable Objects guide](/packages/builder/durable-objects).
+
+### Flow Engine
+
+Orchestrates agent execution with:
+- Turn-based execution (max 250 turns)
+- Side switching for dual_ai agents
+- Stop condition management
+- Tool call coordination
+- Lifecycle hook execution
+
+### LLM Request Handler
+
+Executes LLM requests with intelligent retry logic:
+1. Try primary model (2 attempts)
+2. On failure, try each fallback model (2 attempts each)
+3. Validate responses with Zod schemas
+4. Inject error feedback for retry
+
+### Tool Executor
+
+Executes three types of tools:
+- **Native Tools**: TypeScript functions in `agentbuilder/tools/`
+- **Prompt Tools**: Exposed prompts that create sub-conversations
+- **Agent Tools**: Exposed agents that create child threads
+
+### Built-in Admin UI
+
+A Vue 3 SPA included in the package provides:
+- Thread testing interface
+- Message history viewer
+- Execution logs and telemetry
+- Tool call visualization
+- Cost tracking
+- Agent/prompt configuration viewer
+
+Access it at `/admin` when running your dev server.
+
+## SDK Helpers
+
+### defineAgent
+
+Define an AI agent with configuration.
+
+```typescript
+import { defineAgent } from '@agentbuilder/vite'
+
+export default defineAgent({
+  name: 'support_agent',
+  type: 'ai_human',
+  title: 'Customer Support Agent',
+  defaultPrompt: 'support_prompt',
+  defaultModel: 'gpt-4o',
+  tools: ['search_kb', 'create_ticket'],
+  stopOnResponse: true,
+})
+```
+
+**Agent Types:**
+- `ai_human` - AI conversing with a human (most common)
+- `dual_ai` - Two AIs conversing with each other
+
+### definePrompt
+
+Define a prompt with system instructions and tools.
+
+```typescript
+import { definePrompt } from '@agentbuilder/vite'
+
+export default definePrompt({
+  name: 'support_prompt',
+  model: 'gpt-4o',
+  systemPrompt: `You are a helpful customer support agent.
+Your goal is to assist users with their questions.`,
+  tools: ['search_kb', 'create_ticket'],
+  reasoning: false, // Set to true for o1/o3 models
+})
+```
+
+### defineModel
+
+Define a custom LLM model configuration.
+
+```typescript
+import { defineModel } from '@agentbuilder/vite'
+
+export default defineModel({
+  name: 'gpt-4o',
+  model: 'gpt-4o',
+  provider: 'openai',
+  inputPrice: 2.5,   // per million tokens
+  outputPrice: 10,   // per million tokens
+})
+```
+
+**Supported Providers:**
+- `openai` - OpenAI (GPT models)
+- `anthropic` - Anthropic (Claude models)
+- `google` - Google (Gemini models)
+- `openrouter` - OpenRouter (various models)
+- `x-ai` - xAI (Grok models)
+
+### defineTool
+
+Define a native tool that agents can call.
+
+```typescript
+import { defineTool } from '@agentbuilder/vite'
+import { z } from 'zod'
+
+export default defineTool(
+  'Search the knowledge base for relevant articles',
+  z.object({
+    query: z.string().describe('The search query'),
+  }),
+  async (flow, args) => {
+    const results = await searchKnowledgeBase(args.query)
+    return {
+      status: 'success',
+      result: JSON.stringify(results)
+    }
+  }
+)
+```
+
+<Note>
+Tool names should use `snake_case` for consistency. The plugin will warn about non-conforming names.
+</Note>
+
+## Virtual Modules
+
+The Vite plugin generates several virtual modules:
+
+| Module | Purpose |
+|--------|---------|
+| `virtual:@agentbuilder/vite` | Consolidated module with DurableThread, DurableAgentBuilder, and router |
+| `virtual:@agentbuilder-agents` | Agent definitions registry |
+| `virtual:@agentbuilder-prompts` | Prompt definitions registry |
+| `virtual:@agentbuilder-models` | Model definitions registry |
+| `virtual:agent-tools` | User-defined tools registry |
+| `virtual:agent-hooks` | Lifecycle hooks registry |
+| `virtual:agent-routes` | Combined API routes (built-in + user) |
+
+Learn more in the [Virtual Modules guide](/packages/builder/virtual-modules).
+
+## Server Entry Point
+
+Your server entry point uses the virtual module to set up routing:
+
+```typescript
+import { router } from 'virtual:@agentbuilder/vite'
+import { Thread } from '../agentbuilder/Thread'
+import { AgentBuilder } from '../agentbuilder/AgentBuilder'
+
+export default {
+  async fetch(request, env) {
+    const response = await router(request, env)
+    return response ?? new Response(null, { status: 404 })
+  },
+} satisfies ExportedHandler<Env>
+
+// Export Durable Object classes for Cloudflare Workers binding
+export { Thread as DurableThread }
+export { AgentBuilder as DurableAgentBuilder }
+```
+
+## Environment Variables
+
+Configure API keys for LLM providers:
+
+```bash
+# .dev.vars
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+The framework loads these automatically at runtime.
+
+## Built-in API Routes
+
+The package includes several built-in API routes:
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/threads` | `GET` | List all threads |
+| `/api/threads` | `POST` | Create a new thread |
+| `/api/threads/:id` | `GET` | Get thread details |
+| `/api/threads/:id` | `DELETE` | Delete a thread |
+| `/api/threads/:id/messages` | `GET` | Get thread messages |
+| `/api/threads/:id/messages` | `POST` | Send a message |
+| `/api/threads/:id/stop` | `POST` | Stop thread execution |
+| `/api/threads/:id/logs` | `GET` | Get execution logs |
+
+## Lifecycle Hooks
+
+Create hooks to customize execution behavior:
+
+```typescript
+// agentbuilder/hooks/my_hook.ts
+import type { Hook } from '@agentbuilder/vite'
+
+export const beforeMessage: Hook = async (flow, message) => {
+  // Modify or filter messages before LLM sees them
+  return message
+}
+
+export const afterMessage: Hook = async (flow, message) => {
+  // Modify messages after LLM response
+  return message
+}
+
+export const beforeStorage: Hook = async (flow, message) => {
+  // Modify messages before storage
+  return message
+}
+```
+
+## Custom API Routes
+
+Add custom endpoints alongside built-in routes:
+
+```typescript
+// agentbuilder/api/custom.get.ts
+import { defineController } from '@agentbuilder/vite'
+
+export default defineController(async (request, env) => {
+  return new Response(JSON.stringify({ custom: 'data' }), {
+    headers: { 'Content-Type': 'application/json' }
+  })
+})
+```
+
+File-based routing convention:
+- `custom.get.ts` → `GET /api/custom`
+- `custom.post.ts` → `POST /api/custom`
+- `threads/[id]/custom.get.ts` → `GET /api/threads/:id/custom`
+
+## Development vs Production
+
+<Tabs>
+  <Tab title="Development">
+    - Plugin scans source directories
+    - Virtual modules with HMR
+    - UI served from dev server
+    - API handlers imported from source
+  </Tab>
+  <Tab title="Production">
+    - Pre-built routes metadata
+    - UI served from bundled `client/` directory
+    - API handlers from compiled dist
+    - Configuration from bundled virtual modules
+  </Tab>
+</Tabs>
+
+## Limitations
+
+<AccordionGroup>
+  <Accordion title="Binding Names Fixed">
+    Must use `AGENT_BUILDER_THREAD` and `AGENT_BUILDER`. No customization available.
+  </Accordion>
+
+  <Accordion title="Single Thread Per Request">
+    Cannot process multiple thread messages in parallel within a single request.
+  </Accordion>
+
+  <Accordion title="Tool Naming Convention">
+    Tools should use `snake_case`. Non-conforming names trigger warnings but still work.
+  </Accordion>
+
+  <Accordion title="No Nested Tools Directory">
+    Tools must be directly in `agentbuilder/tools/`, not in subdirectories.
+  </Accordion>
+
+  <Accordion title="Cloudflare Workers Only">
+    Designed specifically for Cloudflare Workers runtime. Not compatible with Node.js or other platforms.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Durable Objects" icon="database" href="/packages/builder/durable-objects">
+    Deep dive into DurableThread and DurableAgentBuilder
+  </Card>
+  <Card title="Virtual Modules" icon="code" href="/packages/builder/virtual-modules">
+    Learn about the auto-discovery system
+  </Card>
+  <Card title="Admin UI" icon="desktop" href="/packages/builder/admin-ui">
+    Explore the built-in admin interface
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core/concepts">
+    Understand agents, prompts, and tools
+  </Card>
+</CardGroup>

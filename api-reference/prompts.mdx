@@ -1,0 +1,689 @@
+---
+title: 'definePrompt'
+description: 'Complete API reference for defining and configuring prompts'
+---
+
+## Overview
+
+Prompts define the instructions and configuration for LLM interactions in Standard Agents. Each prompt specifies system instructions, model configuration, tools, input validation, and context options.
+
+<Card title="Key Features" icon="sparkles">
+  - **File-based**: Defined in `agents/prompts/` directory
+  - **Auto-discovered**: No manual registration required
+  - **Type-safe**: Full TypeScript support with Zod validation
+  - **Composable**: Prompts can be exposed as tools for other prompts
+  - **Hot-reloadable**: Changes trigger HMR in development
+</Card>
+
+## Quick Start
+
+Create a new prompt in `agents/prompts/`:
+
+```typescript agents/prompts/customer_support.ts
+import { definePrompt } from '@standardagents/builder';
+
+export default definePrompt({
+  name: 'customer_support',
+  toolDescription: 'Handle customer support inquiries',
+  prompt: `You are a helpful customer support agent.
+Always be polite and try to resolve issues quickly.`,
+  model: 'gpt-4o',
+  includeChat: true,
+});
+```
+
+Reference it in an agent:
+
+```typescript agents/agents/support_agent.ts
+import { defineAgent } from '@standardagents/builder';
+
+export default defineAgent({
+  name: 'support_agent',
+  sideA: {
+    prompt: 'customer_support',  // References the prompt above
+  },
+});
+```
+
+## Configuration Options
+
+<ResponseField name="name" type="string" required>
+  Unique identifier for this prompt. Use snake_case.
+
+  ```typescript
+  name: 'customer_support'
+  ```
+</ResponseField>
+
+<ResponseField name="toolDescription" type="string" required>
+  Description shown when prompt is exposed as a tool. Always required for potential tool use.
+
+  ```typescript
+  toolDescription: 'Search for information and provide relevant results'
+  ```
+</ResponseField>
+
+<ResponseField name="prompt" type="string" required>
+  The system instructions sent to the LLM. Supports template variables using `{{variableName}}` syntax.
+
+  ```typescript
+  prompt: `You are helping {{userName}} with their request.
+Current date: {{currentDate}}
+Customer tier: {{customerTier}}`
+  ```
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  Name of the model configuration to use. Must be defined in `agents/models/`.
+
+  ```typescript
+  model: 'gpt-4o'
+  ```
+</ResponseField>
+
+<ResponseField name="exposeAsTool" type="boolean" default="false">
+  Whether to expose this prompt as a callable tool for other prompts.
+
+  ```typescript
+  exposeAsTool: true
+  ```
+</ResponseField>
+
+<ResponseField name="includeChat" type="boolean" default="false">
+  Include full chat history in LLM context.
+
+  ```typescript
+  includeChat: true
+  ```
+</ResponseField>
+
+<ResponseField name="includePastTools" type="boolean" default="false">
+  Include past tool call results in context.
+
+  ```typescript
+  includePastTools: true
+  ```
+</ResponseField>
+
+<ResponseField name="parallelToolCalls" type="boolean" default="false">
+  Allow parallel execution of multiple tool calls. (Reserved for future use - currently tools execute sequentially)
+
+  ```typescript
+  parallelToolCalls: false
+  ```
+</ResponseField>
+
+<ResponseField name="toolChoice" type="'auto' | 'none' | 'required'" default="'auto'">
+  Tool calling strategy:
+  - `'auto'`: LLM decides whether to use tools
+  - `'none'`: Disable tool calling
+  - `'required'`: Force the LLM to call at least one tool
+
+  ```typescript
+  toolChoice: 'required'
+  ```
+</ResponseField>
+
+<ResponseField name="requiredSchema" type="ZodSchema">
+  Zod schema for input validation when called as tool.
+
+  ```typescript
+  requiredSchema: z.object({
+    userId: z.string().describe('The user ID to look up'),
+    includeHistory: z.boolean().optional().describe('Include transaction history'),
+  })
+  ```
+</ResponseField>
+
+<ResponseField name="tools" type="(string | ToolConfig)[]" default="[]">
+  Available tools the LLM can call. Can be simple strings or ToolConfig objects.
+
+  ```typescript
+  tools: [
+    'search_knowledge_base',
+    { name: 'create_ticket', includeErrors: true },
+  ]
+  ```
+</ResponseField>
+
+<ResponseField name="handoffAgents" type="string[]" default="[]">
+  Agents that can receive handoffs from this prompt.
+
+  ```typescript
+  handoffAgents: ['specialist_agent']
+  ```
+</ResponseField>
+
+<ResponseField name="beforeTool" type="string">
+  Tool to execute before LLM request.
+
+  ```typescript
+  beforeTool: 'load_context'
+  ```
+</ResponseField>
+
+<ResponseField name="afterTool" type="string">
+  Tool to execute after LLM response.
+
+  ```typescript
+  afterTool: 'save_results'
+  ```
+</ResponseField>
+
+<ResponseField name="reasoning" type="ReasoningConfig">
+  Extended thinking configuration for models that support it.
+
+  ```typescript
+  reasoning: {
+    effort: 'high',
+    maxTokens: 10000,
+  }
+  ```
+</ResponseField>
+
+## Tools in Prompts
+
+Tools are callable capabilities exposed to LLMs. They can be:
+
+<CardGroup cols={3}>
+  <Card title="Functions" icon="code">
+    Custom code defined in `agents/tools/`
+  </Card>
+  <Card title="Prompts" icon="message">
+    Other prompts exposed as tools (sub-prompts)
+  </Card>
+  <Card title="Agents" icon="robot">
+    Entire agents exposed as tools (handoffs)
+  </Card>
+</CardGroup>
+
+### Adding Tools
+
+```typescript
+definePrompt({
+  name: 'support_prompt',
+  tools: [
+    'search_knowledge_base',                    // Simple reference
+    { name: 'create_ticket' },                  // Object form
+    { name: 'sub_prompt', includeErrors: true }, // With options
+  ],
+  // ...
+});
+```
+
+### ToolConfig Options
+
+<ParamField path="name" type="string" required>
+  Name of the tool
+</ParamField>
+
+<ParamField path="includeTextResponse" type="boolean" default="true">
+  Include text response from sub-prompt execution
+</ParamField>
+
+<ParamField path="includeToolCalls" type="boolean" default="true">
+  Include tool call details from sub-prompt
+</ParamField>
+
+<ParamField path="includeErrors" type="boolean" default="true">
+  Include error details from sub-prompt
+</ParamField>
+
+<ParamField path="initUserMessageProperty" type="string">
+  Property from tool arguments to use as initial user message
+</ParamField>
+
+## Input Validation
+
+Define input validation with Zod schemas:
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default definePrompt({
+  name: 'user_lookup',
+  toolDescription: 'Look up user information',
+  prompt: 'You help find user information...',
+  model: 'gpt-4o',
+  requiredSchema: z.object({
+    userId: z.string().describe('The user ID to look up'),
+    includeHistory: z.boolean().optional().describe('Include transaction history'),
+  }),
+});
+```
+
+### Supported Zod Types
+
+<Accordion title="Complete list of supported types">
+  | Zod Type | Example | Notes |
+  |----------|---------|-------|
+  | `z.string()` | `z.string().min(1)` | Text values |
+  | `z.number()` | `z.number().positive()` | Numeric values |
+  | `z.boolean()` | `z.boolean()` | True/false |
+  | `z.null()` | `z.null()` | Null value |
+  | `z.literal()` | `z.literal('active')` | Exact value |
+  | `z.enum()` | `z.enum(['a', 'b'])` | One of values |
+  | `z.array()` | `z.array(z.string())` | Arrays |
+  | `z.object()` | `z.object({...})` | Objects |
+  | `z.record()` | `z.record(z.string())` | Dynamic keys |
+  | `z.union()` | `z.union([...])` | Multiple types |
+  | `z.optional()` | `z.string().optional()` | Optional field |
+  | `z.nullable()` | `z.string().nullable()` | Can be null |
+  | `z.default()` | `z.number().default(10)` | Default value |
+</Accordion>
+
+**Note:** Maximum nesting depth is 7 levels.
+
+## Extended Thinking
+
+Configure extended thinking for models that support it:
+
+```typescript
+definePrompt({
+  name: 'complex_analysis',
+  prompt: 'You analyze complex problems...',
+  model: 'claude-sonnet',
+  reasoning: {
+    effort: 'high',      // low | medium | high
+    maxTokens: 10000,    // Maximum reasoning tokens
+    exclude: false,      // Include reasoning in response
+    include: false,      // Include reasoning in history
+  },
+});
+```
+
+### Reasoning Options
+
+<ResponseField name="effort" type="'low' | 'medium' | 'high'">
+  Reasoning effort level:
+  - `'low'`: Minimal reasoning, faster responses
+  - `'medium'`: Balanced reasoning and speed
+  - `'high'`: Maximum reasoning, thorough analysis
+</ResponseField>
+
+<ResponseField name="maxTokens" type="number">
+  Maximum tokens for reasoning (Anthropic, Google, Qwen)
+</ResponseField>
+
+<ResponseField name="exclude" type="boolean" default="false">
+  Use reasoning internally but exclude from response
+</ResponseField>
+
+<ResponseField name="include" type="boolean" default="false">
+  Include reasoning in message history for multi-turn context
+</ResponseField>
+
+## Exposing Prompts as Tools
+
+Set `exposeAsTool: true` to make a prompt callable as a tool:
+
+```typescript
+// agents/prompts/code_reviewer.ts
+definePrompt({
+  name: 'code_reviewer',
+  toolDescription: 'Review code for bugs and improvements',
+  exposeAsTool: true,
+  prompt: `You are an expert code reviewer.
+Analyze the provided code for:
+- Bugs and potential issues
+- Performance improvements
+- Best practices violations`,
+  model: 'gpt-4o',
+  requiredSchema: z.object({
+    code: z.string().describe('Code to review'),
+    language: z.string().describe('Programming language'),
+  }),
+});
+```
+
+Use in another prompt:
+
+```typescript
+// agents/prompts/developer_assistant.ts
+definePrompt({
+  name: 'developer_assistant',
+  toolDescription: 'Help developers with coding tasks',
+  prompt: 'You are a helpful coding assistant...',
+  model: 'gpt-4o',
+  tools: ['code_reviewer'],  // Use the prompt tool
+});
+```
+
+### Sub-Prompt Execution Flow
+
+When an LLM calls a prompt tool:
+
+1. **Tool call received**: Parent prompt receives tool call with arguments
+2. **Validation**: Arguments validated against `requiredSchema`
+3. **Sub-prompt execution**: New execution context created
+4. **Message hierarchy**: Messages stored with `parent_id` and `depth`
+5. **Result rollup**: Sub-prompt response returned as tool result
+6. **Parent continues**: Parent LLM receives result and continues
+
+## Examples
+
+### Basic Conversation
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+
+export default definePrompt({
+  name: 'assistant',
+  toolDescription: 'General assistant for conversations',
+  prompt: `You are a helpful assistant.
+Provide clear, accurate, and friendly responses.`,
+  model: 'gpt-4o',
+  includeChat: true,
+});
+```
+
+### Customer Support with Tools
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default definePrompt({
+  name: 'customer_support',
+  toolDescription: 'Handle customer support inquiries',
+  prompt: `You are a customer support agent for Acme Corp.
+
+Your responsibilities:
+- Answer questions about products and services
+- Help resolve issues on first contact
+- Create support tickets when needed
+- Escalate to specialists for complex issues
+
+Always be professional and empathetic.`,
+  model: 'gpt-4o',
+  includeChat: true,
+  tools: [
+    'search_knowledge_base',
+    'lookup_customer',
+    { name: 'create_ticket', includeErrors: true },
+  ],
+  handoffAgents: ['specialist_agent'],
+});
+```
+
+### Data Analysis with Reasoning
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default definePrompt({
+  name: 'data_analyst',
+  toolDescription: 'Analyze data and generate insights',
+  exposeAsTool: true,
+  prompt: `You are a data analyst expert.
+Analyze the provided data and return actionable insights.
+Use statistical analysis when appropriate.`,
+  model: 'gpt-4o',
+  reasoning: {
+    effort: 'medium',
+    exclude: false,
+  },
+  requiredSchema: z.object({
+    data: z.string().describe('Data to analyze (JSON format)'),
+    question: z.string().describe('Analysis question'),
+    format: z.enum(['summary', 'detailed', 'json']).default('summary'),
+  }),
+  tools: [
+    'calculate_statistics',
+    'generate_chart',
+  ],
+});
+```
+
+### Orchestrator
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+
+export default definePrompt({
+  name: 'orchestrator',
+  toolDescription: 'Coordinate complex multi-step tasks',
+  prompt: `You are a task orchestrator.
+Break down complex requests into steps and coordinate execution.
+Use specialized prompts for specific tasks.`,
+  model: 'gpt-4o',
+  includeChat: true,
+  includePastTools: true,
+  tools: [
+    'data_analyst',      // Sub-prompt
+    'code_reviewer',     // Sub-prompt
+    'research_agent',    // Agent tool
+    'search_web',        // Function tool
+  ],
+});
+```
+
+## Type Definitions
+
+### PromptDefinition
+
+```typescript
+interface PromptDefinition<
+  N extends string = string,
+  S extends z.ZodTypeAny = z.ZodTypeAny
+> {
+  /** Unique name for this prompt */
+  name: N;
+
+  /** Description shown when exposed as tool */
+  toolDescription: string;
+
+  /** System prompt sent to LLM */
+  prompt: string;
+
+  /** Model configuration to use */
+  model: StandardAgents.Models;
+
+  /** Expose as callable tool for other prompts */
+  exposeAsTool?: boolean;
+
+  /** Include full chat history in LLM context */
+  includeChat?: boolean;
+
+  /** Include past tool call results in context */
+  includePastTools?: boolean;
+
+  /** Allow parallel execution of tool calls */
+  parallelToolCalls?: boolean;
+
+  /** Tool calling strategy */
+  toolChoice?: 'auto' | 'none' | 'required';
+
+  /** Zod schema for input validation */
+  requiredSchema?: S;
+
+  /** Available tools */
+  tools?: (StandardAgents.Callables | ToolConfig)[];
+
+  /** Agents that can receive handoffs */
+  handoffAgents?: StandardAgents.Agents[];
+
+  /** Tool to execute before LLM request */
+  beforeTool?: StandardAgents.Callables;
+
+  /** Tool to execute after LLM response */
+  afterTool?: StandardAgents.Callables;
+
+  /** Extended thinking configuration */
+  reasoning?: ReasoningConfig;
+}
+```
+
+### ToolConfig
+
+```typescript
+interface ToolConfig<T extends string = StandardAgents.Callables> {
+  /** Name of the tool */
+  name: T;
+
+  /** Include text response from sub-prompt */
+  includeTextResponse?: boolean;
+
+  /** Include tool call details from sub-prompt */
+  includeToolCalls?: boolean;
+
+  /** Include error details from sub-prompt */
+  includeErrors?: boolean;
+
+  /** Property from args to use as initial message */
+  initUserMessageProperty?: string;
+}
+```
+
+### ReasoningConfig
+
+```typescript
+interface ReasoningConfig {
+  /** Effort level: 'low' | 'medium' | 'high' */
+  effort?: 'low' | 'medium' | 'high';
+
+  /** Maximum tokens for reasoning */
+  maxTokens?: number;
+
+  /** Use reasoning internally but exclude from response */
+  exclude?: boolean;
+
+  /** Include reasoning in message history */
+  include?: boolean;
+}
+```
+
+### PromptInput Type Helper
+
+Extract the input type from a prompt definition:
+
+```typescript
+import { PromptInput } from '@standardagents/builder';
+import myPrompt from './my_prompt';
+
+type MyPromptInput = PromptInput<typeof myPrompt>;
+// { userId: string; options?: { format: 'json' | 'text' } }
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Write Clear System Prompts">
+    ```typescript
+    // Good - clear structure and expectations
+    definePrompt({
+      name: 'support_agent',
+      prompt: `You are a customer support agent for Acme Corp.
+
+## Your Role
+- Answer questions about products and services
+- Help resolve issues on first contact
+- Create tickets for complex issues
+
+## Guidelines
+- Be professional and empathetic
+- Ask clarifying questions when needed
+- Never share internal information
+
+## Available Tools
+Use these tools to help customers:
+- search_knowledge_base: Find product information
+- create_ticket: Create support tickets`,
+      // ...
+    });
+
+    // Avoid - vague instructions
+    definePrompt({
+      name: 'support_agent',
+      prompt: 'Help customers.',
+      // ...
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Use Descriptive Tool Descriptions">
+    ```typescript
+    // Good - specific and actionable
+    definePrompt({
+      name: 'search_prompt',
+      toolDescription: 'Search the knowledge base for product information, FAQs, and troubleshooting guides. Returns relevant articles.',
+      // ...
+    });
+
+    // Avoid - too vague
+    definePrompt({
+      name: 'search_prompt',
+      toolDescription: 'Search stuff',
+      // ...
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Validate Inputs with Zod">
+    ```typescript
+    // Good - detailed schema with descriptions
+    requiredSchema: z.object({
+      customerId: z.string().min(1).describe('Customer ID from CRM'),
+      issue: z.string().min(10).describe('Description of the issue'),
+      priority: z.enum(['low', 'medium', 'high']).default('medium'),
+    }).strict()
+
+    // Avoid - no validation
+    requiredSchema: z.object({
+      data: z.any(),
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Enable includeChat for Conversations">
+    ```typescript
+    // For conversational prompts
+    definePrompt({
+      name: 'chat_assistant',
+      includeChat: true,  // Needed for context
+      // ...
+    });
+
+    // For single-shot tasks
+    definePrompt({
+      name: 'code_formatter',
+      includeChat: false,  // No history needed
+      // ...
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## File Structure
+
+```
+agents/
+└── prompts/
+    ├── customer_support.ts   # export default definePrompt({...})
+    ├── data_analyst.ts       # export default definePrompt({...})
+    └── orchestrator.ts       # export default definePrompt({...})
+```
+
+**Requirements:**
+- One prompt per file
+- Default export required
+- Use snake_case for file names
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="microchip" href="/api-reference/models">
+    Define model configurations
+  </Card>
+  <Card title="Tools" icon="wrench" href="/api-reference/tools">
+    Create custom function tools
+  </Card>
+  <Card title="Agents" icon="robot" href="/api-reference/agents">
+    Configure agents that use prompts
+  </Card>
+  <Card title="Hooks" icon="hook" href="/api-reference/hooks">
+    Intercept execution at various points
+  </Card>
+</CardGroup>

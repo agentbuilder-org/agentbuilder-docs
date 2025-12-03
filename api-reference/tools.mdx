@@ -1,0 +1,674 @@
+---
+title: 'Tools API Reference'
+description: 'Complete technical reference for creating and configuring tools'
+---
+
+## Overview
+
+Tools in AgentBuilder are callable capabilities that extend AI agents beyond text generation. This document provides the complete API specification for all tool types.
+
+<Info>
+Tools are auto-discovered from `agents/tools/`. Prompts and agents can also be exposed as tools via `exposeAsTool: true`.
+</Info>
+
+## defineTool
+
+The `defineTool` function creates a function tool with full TypeScript support and Zod validation.
+
+### Function Signatures
+
+`defineTool` has three overloaded signatures:
+
+```typescript
+// 1. With arguments (most common)
+function defineTool<Args extends ToolArgs>(
+  description: string,
+  args: Args,
+  handler: (flow: FlowState, args: z.infer<Args>) => Promise<CallToolResult>
+): ToolDefinition
+
+// 2. Without arguments
+function defineTool(
+  description: string,
+  handler: (flow: FlowState) => Promise<CallToolResult>
+): ToolDefinition
+
+// 3. With return schema
+function defineTool<Args extends ToolArgs, Return extends ZodSchema>(
+  description: string,
+  args: Args,
+  handler: (flow: FlowState, args: z.infer<Args>) => Promise<CallToolResult>,
+  returnSchema: Return
+): ToolDefinition
+```
+
+### Parameters
+
+<ResponseField name="description" type="string" required>
+  Tool description shown to LLMs. Be specific about what the tool does.
+
+  **Best practices:**
+  - Include what the tool does
+  - Mention expected inputs/outputs
+  - Describe when to use it
+
+  ```typescript
+  'Search the knowledge base for product documentation, FAQs, and troubleshooting guides. Returns relevant articles sorted by relevance.'
+  ```
+</ResponseField>
+
+<ResponseField name="args" type="ZodSchema">
+  Zod object schema defining tool parameters.
+
+  **Supported Zod types:**
+  - `z.string()`, `z.number()`, `z.boolean()`
+  - `z.enum()`, `z.literal()`, `z.array()`
+  - `z.object()`, `z.record()`, `z.union()`
+  - `z.optional()`, `z.nullable()`, `z.default()`
+
+  **Maximum nesting depth:** 7 levels
+
+  ```typescript
+  z.object({
+    query: z.string().describe('Search query'),
+    limit: z.number().optional().default(10).describe('Max results'),
+    filters: z.object({
+      category: z.string().optional(),
+    }).optional(),
+  })
+  ```
+</ResponseField>
+
+<ResponseField name="handler" type="function" required>
+  Async function that executes the tool logic.
+
+  **Signature:**
+  ```typescript
+  async (flow: FlowState, args?: InferredArgs) => Promise<CallToolResult>
+  ```
+
+  **Parameters:**
+  - `flow`: Complete execution context
+  - `args`: Validated arguments (if schema provided)
+
+  **Returns:** `CallToolResult` object
+</ResponseField>
+
+<ResponseField name="returnSchema" type="ZodSchema">
+  Optional schema for structured return values. Used for validation and documentation.
+
+  ```typescript
+  z.object({
+    orderId: z.string(),
+    status: z.enum(['pending', 'completed', 'failed']),
+  })
+  ```
+</ResponseField>
+
+## Type Definitions
+
+### Tool
+
+```typescript
+type Tool<Args extends ToolArgs | null = null> = Args extends ToolArgs
+  ? (flow: FlowState, args: z.infer<Args>) => Promise<CallToolResult>
+  : (flow: FlowState) => Promise<CallToolResult>;
+```
+
+### ToolArgs
+
+```typescript
+type ToolArgs<D extends number = 7> = z.ZodObject<ToolArgsRawShape<D>>;
+
+type ToolArgsRawShape<D extends number = 7> = {
+  [key: string]: ToolArgValue<D>;
+};
+
+type ToolArgValue<D extends number = 0> =
+  | z.ZodString
+  | z.ZodNumber
+  | z.ZodBoolean
+  | z.ZodNull
+  | z.ZodLiteral<any>
+  | z.ZodEnum<any>
+  | z.ZodArray<ToolArgValue<D>>
+  | z.ZodObject<ToolArgsRawShape<Decrement<D>>>
+  | z.ZodRecord<ToolArgValue<D>>
+  | z.ZodUnion<any>
+  | z.ZodOptional<ToolArgValue<D>>
+  | z.ZodNullable<ToolArgValue<D>>
+  | z.ZodDefault<ToolArgValue<D>>;
+```
+
+### CallToolResult
+
+```typescript
+interface CallToolResult {
+  status: 'success' | 'error';
+  content: Array<{
+    type: 'text' | 'image' | 'document';
+    text?: string;
+    source?: {
+      type: 'url' | 'base64';
+      media_type?: string;
+      data: string;
+    };
+  }>;
+}
+```
+
+### FlowState (Partial)
+
+```typescript
+interface FlowState {
+  // Identity
+  threadId: string;
+  flowId: string;
+
+  // Configuration
+  agentConfig: Agent;
+  currentSide: 'a' | 'b';
+
+  // Execution State
+  turnCount: number;
+  stopped: boolean;
+  stoppedBy?: 'a' | 'b';
+
+  // Message Context
+  messageHistory: Message[];
+
+  // Runtime Context
+  context: Record<string, unknown>;
+  storage: DurableObjectStorage;
+  env: ThreadEnv;
+
+  // Tool Queue
+  sequence: {
+    queue: ToolCall[];
+    isHandling: boolean;
+  };
+
+  // Streaming
+  stream: StreamManager;
+
+  // Hierarchical
+  depth: number;
+  parentMessageId?: string;
+  rootState: FlowState;
+}
+```
+
+## FlowState Properties
+
+<ResponseField name="threadId" type="string">
+  Current thread's Durable Object ID.
+
+  ```typescript
+  console.log('Thread:', flow.threadId);
+  ```
+</ResponseField>
+
+<ResponseField name="flowId" type="string">
+  Unique ID for this execution.
+</ResponseField>
+
+<ResponseField name="agentConfig" type="Agent">
+  Complete agent configuration from D1.
+
+  ```typescript
+  console.log('Agent:', flow.agentConfig.name);
+  ```
+</ResponseField>
+
+<ResponseField name="currentSide" type="'a' | 'b'">
+  Which side is currently executing (relevant for dual_ai agents).
+</ResponseField>
+
+<ResponseField name="turnCount" type="number">
+  Current turn number (0-24).
+
+  ```typescript
+  if (flow.turnCount >= 20) {
+    console.warn('Approaching turn limit');
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="messageHistory" type="Message[]">
+  Full conversation history.
+
+  ```typescript
+  const lastMessage = flow.messageHistory[flow.messageHistory.length - 1];
+  ```
+</ResponseField>
+
+<ResponseField name="storage" type="DurableObjectStorage">
+  Thread's SQLite storage.
+
+  ```typescript
+  const cursor = await flow.storage.sql.exec(
+    'SELECT * FROM custom_table WHERE id = ?',
+    args.id
+  );
+  const rows = cursor.toArray();
+  ```
+</ResponseField>
+
+<ResponseField name="env" type="ThreadEnv">
+  Cloudflare environment bindings.
+
+  ```typescript
+  const db = flow.env.DB;          // D1 database
+  const kv = flow.env.KV;          // KV namespace
+  const apiKey = flow.env.API_KEY; // Environment variable
+  ```
+</ResponseField>
+
+<ResponseField name="rootState" type="FlowState">
+  Reference to root flow state (use for queueing tools from sub-prompts).
+
+  ```typescript
+  queueTool(flow.rootState, 'other_tool', args);
+  ```
+</ResponseField>
+
+## FlowState Utility Functions
+
+All utilities are imported from `@agentbuilder/vite`:
+
+```typescript
+import {
+  queueTool,
+  injectMessage,
+  getMessages,
+  emitThreadEvent,
+  forceTurn,
+} from '@agentbuilder/vite';
+```
+
+### queueTool
+
+Queue another tool to execute after the current one.
+
+<ParamField path="flow" type="FlowState" required>
+  The current FlowState (use `flow.rootState` for proper queue access)
+</ParamField>
+
+<ParamField path="toolName" type="string" required>
+  Name of tool to queue
+</ParamField>
+
+<ParamField path="args" type="Record<string, unknown>">
+  Arguments for the tool
+</ParamField>
+
+**Example:**
+```typescript
+queueTool(flow.rootState, 'send_email', {
+  to: 'user@example.com',
+  subject: 'Order Confirmation',
+});
+```
+
+### injectMessage
+
+Add a message to the conversation without triggering execution.
+
+<ParamField path="flow" type="FlowState" required>
+  The current FlowState
+</ParamField>
+
+<ParamField path="options" type="InjectMessageOptions" required>
+  Message options
+</ParamField>
+
+**InjectMessageOptions:**
+```typescript
+interface InjectMessageOptions {
+  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  id?: string;
+  beforeMessageId?: string;
+  toolCallId?: string;
+  name?: string;
+  silent?: boolean;         // Hidden from LLM
+  forceTopLevel?: boolean;  // Force depth 0
+}
+```
+
+**Example:**
+```typescript
+await injectMessage(flow, {
+  role: 'system',
+  content: 'User context loaded',
+  silent: true,
+});
+```
+
+### getMessages
+
+Retrieve message history from thread storage.
+
+<ParamField path="flow" type="FlowState" required>
+  The current FlowState
+</ParamField>
+
+<ParamField path="limit" type="number" default={100}>
+  Maximum messages to retrieve
+</ParamField>
+
+<ParamField path="offset" type="number" default={0}>
+  Number of messages to skip
+</ParamField>
+
+<ParamField path="order" type="'asc' | 'desc'" default="'asc'">
+  Sort order
+</ParamField>
+
+**Example:**
+```typescript
+const messages = await getMessages(flow, 20, 0, 'desc');
+```
+
+### emitThreadEvent
+
+Send custom events to WebSocket clients.
+
+<ParamField path="flow" type="FlowState" required>
+  The current FlowState
+</ParamField>
+
+<ParamField path="type" type="string" required>
+  Event type identifier
+</ParamField>
+
+<ParamField path="data" type="unknown" required>
+  Event payload
+</ParamField>
+
+**Example:**
+```typescript
+emitThreadEvent(flow, 'progress', {
+  current: 5,
+  total: 10,
+  percentage: 50,
+});
+```
+
+## Tool Results
+
+### Text Results
+
+```typescript
+return {
+  status: 'success',
+  content: [
+    { type: 'text', text: 'Operation completed successfully' },
+  ],
+};
+```
+
+### JSON Results
+
+```typescript
+return {
+  status: 'success',
+  content: [
+    { type: 'text', text: JSON.stringify({ id: '123', name: 'John' }) },
+  ],
+};
+```
+
+### Multiple Content Items
+
+```typescript
+return {
+  status: 'success',
+  content: [
+    { type: 'text', text: 'Found 3 results:' },
+    { type: 'text', text: JSON.stringify(results) },
+  ],
+};
+```
+
+### Image Results
+
+```typescript
+return {
+  status: 'success',
+  content: [
+    {
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: 'image/png',
+        data: base64ImageData,
+      },
+    },
+  ],
+};
+```
+
+### Error Results
+
+```typescript
+return {
+  status: 'error',
+  content: [
+    { type: 'text', text: 'Failed to find user: User not found' },
+  ],
+};
+```
+
+## Complete Examples
+
+### Database Query Tool
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Look up customer information by ID or email',
+  z.object({
+    customerId: z.string().optional().describe('Customer ID'),
+    email: z.string().email().optional().describe('Customer email'),
+  }).refine(
+    data => data.customerId || data.email,
+    { message: 'Either customerId or email is required' }
+  ),
+  async (flow, args) => {
+    const db = flow.env.DB;
+
+    let customer;
+    if (args.customerId) {
+      customer = await db.prepare('SELECT * FROM customers WHERE id = ?')
+        .bind(args.customerId).first();
+    } else {
+      customer = await db.prepare('SELECT * FROM customers WHERE email = ?')
+        .bind(args.email).first();
+    }
+
+    if (!customer) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: 'Customer not found' }],
+      };
+    }
+
+    return {
+      status: 'success',
+      content: [{ type: 'text', text: JSON.stringify(customer) }],
+    };
+  }
+);
+```
+
+### API Integration Tool
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Fetch current weather for a city',
+  z.object({
+    city: z.string().describe('City name'),
+    units: z.enum(['metric', 'imperial']).default('metric'),
+  }),
+  async (flow, args) => {
+    const apiKey = flow.env.WEATHER_API_KEY;
+
+    try {
+      const response = await fetch(
+        `https://api.weather.com/v1/current?city=${encodeURIComponent(args.city)}&units=${args.units}&key=${apiKey}`
+      );
+
+      if (!response.ok) {
+        return {
+          status: 'error',
+          content: [{ type: 'text', text: `Weather API error: ${response.status}` }],
+        };
+      }
+
+      const data = await response.json();
+
+      return {
+        status: 'success',
+        content: [{
+          type: 'text',
+          text: `Weather in ${args.city}: ${data.temperature}°, ${data.conditions}`,
+        }],
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        content: [{ type: 'text', text: `Failed to fetch weather: ${error.message}` }],
+      };
+    }
+  }
+);
+```
+
+### Tool with Queue Chaining
+
+```typescript
+import { defineTool, queueTool } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Process a customer order',
+  z.object({
+    orderId: z.string().describe('Order ID'),
+    action: z.enum(['confirm', 'cancel', 'ship']),
+  }),
+  async (flow, args) => {
+    const result = await processOrder(args.orderId, args.action);
+
+    // Queue follow-up notifications
+    queueTool(flow.rootState, 'send_notification', {
+      customerId: result.customerId,
+      message: `Order ${args.orderId} has been ${args.action}ed`,
+    });
+
+    return {
+      status: 'success',
+      content: [{
+        type: 'text',
+        text: `Order ${args.orderId} ${args.action}ed successfully`,
+      }],
+    };
+  }
+);
+```
+
+### Tool with Message Injection
+
+```typescript
+import { defineTool, injectMessage } from '@agentbuilder/vite';
+import { z } from 'zod';
+
+export default defineTool(
+  'Update conversation context with new information',
+  z.object({
+    contextType: z.enum(['user_info', 'preferences', 'history']),
+    data: z.record(z.unknown()).describe('Context data'),
+  }),
+  async (flow, args) => {
+    // Store context in thread storage
+    await flow.storage.sql.exec(
+      'INSERT OR REPLACE INTO context (type, data) VALUES (?, ?)',
+      args.contextType,
+      JSON.stringify(args.data)
+    );
+
+    // Inject a system message with the context
+    await injectMessage(flow, {
+      role: 'system',
+      content: `Updated ${args.contextType}: ${JSON.stringify(args.data)}`,
+      silent: false,
+    });
+
+    return {
+      status: 'success',
+      content: [{ type: 'text', text: `Context updated: ${args.contextType}` }],
+    };
+  }
+);
+```
+
+### Simple Tool Without Arguments
+
+```typescript
+import { defineTool } from '@agentbuilder/vite';
+
+export default defineTool(
+  'Get the current server time in ISO format',
+  async (flow) => {
+    return {
+      status: 'success',
+      content: [{
+        type: 'text',
+        text: new Date().toISOString(),
+      }],
+    };
+  }
+);
+```
+
+## File Structure
+
+```
+agents/
+└── tools/
+    ├── search_database.ts    # export default defineTool(...)
+    ├── create_ticket.ts      # export default defineTool(...)
+    ├── send_notification.ts  # export default defineTool(...)
+    └── get_current_time.ts   # export default defineTool(...)
+```
+
+**Requirements:**
+- One tool per file
+- Default export required
+- Use snake_case for file names
+- No nested directories
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/core-concepts/tools">
+    Learn tool fundamentals
+  </Card>
+
+  <Card title="FlowState API" icon="circle-nodes" href="/api-reference/flowstate">
+    Complete FlowState reference
+  </Card>
+
+  <Card title="Prompts API" icon="file-lines" href="/api-reference/prompts">
+    Configure prompts that use tools
+  </Card>
+
+  <Card title="Hooks API" icon="webhook" href="/api-reference/hooks">
+    Intercept tool execution
+  </Card>
+</CardGroup>

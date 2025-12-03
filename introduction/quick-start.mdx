@@ -1,0 +1,428 @@
+---
+title: 'Quick Start'
+description: 'Build your first AI agent in 5 minutes'
+---
+
+# Quick Start Guide
+
+This tutorial will guide you through creating your first AI agent with Standard Agents. We'll build a simple customer support chatbot that can answer questions and search a knowledge base.
+
+<Info>
+This guide assumes you've completed the [Installation](/introduction/installation) steps.
+</Info>
+
+## What We'll Build
+
+A customer support agent that can:
+- Answer common questions
+- Search a knowledge base
+- Escalate to human support when needed
+
+## Step 1: Define a Model
+
+First, let's configure an LLM model. Create a file in `agents/models/`:
+
+```typescript agents/models/gpt-4o-mini.ts
+import { defineModel } from '@standardagents/builder'
+
+export default defineModel({
+  name: 'gpt-4o-mini',
+  model: 'gpt-4o-mini',
+  provider: 'openai',
+  inputPrice: 0.15,
+  outputPrice: 0.6,
+})
+```
+
+<Accordion title="Model configuration explained">
+- **`name`**: Internal identifier used in prompts and agents
+- **`model`**: The actual model ID from the provider
+- **`provider`**: LLM provider (`openai`, `anthropic`, `google`, `openrouter`)
+- **`inputPrice`**: Cost per million input tokens (for tracking)
+- **`outputPrice`**: Cost per million output tokens (for tracking)
+</Accordion>
+
+## Step 2: Create a Custom Tool
+
+Let's create a tool that searches a knowledge base. Create `agents/tools/search_knowledge_base.ts`:
+
+```typescript agents/tools/search_knowledge_base.ts
+import { defineTool } from '@standardagents/builder'
+import { z } from 'zod'
+
+export default defineTool(
+  "Search the knowledge base for information about products and policies",
+  z.object({
+    query: z.string().describe("The search query"),
+    category: z.enum(['products', 'policies', 'troubleshooting'])
+      .optional()
+      .describe("Narrow search to a specific category")
+  }),
+  async (flow, args) => {
+    // Simulate a knowledge base search
+    const results = [
+      {
+        title: 'Return Policy',
+        content: 'Items can be returned within 30 days of purchase with receipt.',
+        category: 'policies'
+      },
+      {
+        title: 'Product Warranty',
+        content: 'All products come with a 1-year manufacturer warranty.',
+        category: 'products'
+      }
+    ]
+
+    // Filter by category if specified
+    const filtered = args.category
+      ? results.filter(r => r.category === args.category)
+      : results
+
+    // Simple text search
+    const matches = filtered.filter(r =>
+      r.title.toLowerCase().includes(args.query.toLowerCase()) ||
+      r.content.toLowerCase().includes(args.query.toLowerCase())
+    )
+
+    if (matches.length === 0) {
+      return {
+        status: 'success',
+        result: 'No relevant articles found. Consider escalating to human support.'
+      }
+    }
+
+    return {
+      status: 'success',
+      result: JSON.stringify(matches, null, 2)
+    }
+  }
+)
+```
+
+<Note>
+Tools are automatically discovered - just save the file and restart the dev server!
+</Note>
+
+## Step 3: Define a Prompt
+
+Create a system prompt for your agent in `agents/prompts/support-prompt.ts`:
+
+```typescript agents/prompts/support-prompt.ts
+import { definePrompt } from '@standardagents/builder'
+
+export default definePrompt({
+  name: 'support-prompt',
+  model: 'gpt-4o-mini',
+  systemPrompt: `You are a helpful customer support agent for TechCorp.
+
+Your role:
+- Answer customer questions politely and professionally
+- Search the knowledge base when you need information
+- Escalate complex issues to human support
+- Always be concise and helpful
+
+Guidelines:
+- Use the search_knowledge_base tool to find accurate information
+- If you can't help, admit it and offer to escalate
+- Never make up information - always search first
+- Be empathetic to customer concerns`,
+  tools: ['search_knowledge_base'],
+  stopOnResponse: true,
+})
+```
+
+<Accordion title="Prompt configuration explained">
+- **`name`**: Identifier for this prompt
+- **`model`**: Which model to use (references the model we defined earlier)
+- **`systemPrompt`**: Instructions that define the agent's behavior
+- **`tools`**: Array of tool names the agent can use
+- **`stopOnResponse`**: Stop execution after generating a response (typical for chatbots)
+</Accordion>
+
+## Step 4: Create an Agent
+
+Now define the agent in `agents/agents/customer-support.ts`:
+
+```typescript agents/agents/customer-support.ts
+import { defineAgent } from '@standardagents/builder'
+
+export default defineAgent({
+  name: 'customer-support',
+  type: 'ai_human',
+  title: 'Customer Support Agent',
+  description: 'Answers customer questions and searches the knowledge base',
+  defaultPrompt: 'support-prompt',
+  defaultModel: 'gpt-4o-mini',
+  tools: ['search_knowledge_base'],
+})
+```
+
+<Accordion title="Agent configuration explained">
+- **`name`**: Unique identifier for the agent
+- **`type`**: `'ai_human'` for chatbots, `'dual_ai'` for AI-to-AI conversations
+- **`title`**: Human-readable name shown in the UI
+- **`description`**: What the agent does
+- **`defaultPrompt`**: Which prompt to use by default
+- **`defaultModel`**: Fallback model if prompt doesn't specify one
+- **`tools`**: Tools available to this agent
+</Accordion>
+
+## Step 5: Restart Development Server
+
+Restart your dev server to load the new configuration:
+
+```bash
+pnpm dev
+```
+
+<Check>
+Standard Agents will automatically discover and load your agent, prompt, model, and tool!
+</Check>
+
+## Step 6: Test in Admin UI
+
+Open `http://localhost:5176` in your browser:
+
+<Steps>
+  <Step title="Navigate to Agents">
+    Click on "Agents" in the sidebar
+  </Step>
+  <Step title="Find Your Agent">
+    You should see "Customer Support Agent" in the list
+  </Step>
+  <Step title="Create Test Thread">
+    Click "Test" or "Create Thread" to start a conversation
+  </Step>
+  <Step title="Send a Message">
+    Try: "What's your return policy?"
+  </Step>
+</Steps>
+
+You should see:
+1. The agent receives your message
+2. It calls the `search_knowledge_base` tool
+3. The tool returns relevant information
+4. The agent responds with the policy details
+
+<Frame>
+  <img src="/images/test-conversation.png" alt="Testing in Admin UI" />
+</Frame>
+
+## Step 7: Use the API
+
+You can also interact with your agent programmatically via the REST API.
+
+### Create a Thread
+
+```bash
+curl -X POST http://localhost:5176/api/threads \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "customer-support"
+  }'
+```
+
+Response:
+```json
+{
+  "id": "thread_abc123",
+  "agent_id": "customer-support",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+### Send a Message
+
+```bash
+curl -X POST http://localhost:5176/api/threads/thread_abc123/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "What is your return policy?"
+  }'
+```
+
+### Stream Responses
+
+For real-time streaming, connect via WebSocket:
+
+```javascript
+const ws = new WebSocket('ws://localhost:5176/api/threads/thread_abc123/stream')
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  console.log('Received:', data)
+}
+
+ws.send(JSON.stringify({
+  type: 'message',
+  content: 'What is your return policy?'
+}))
+```
+
+## Understanding the Execution Flow
+
+Here's what happens when a user sends a message:
+
+<Steps>
+  <Step title="Message Received">
+    Your message arrives at the Worker and routes to the Durable Object thread
+  </Step>
+  <Step title="Prompt Loaded">
+    The agent loads the `support-prompt` configuration
+  </Step>
+  <Step title="LLM Processes">
+    The message is sent to GPT-4o-mini with the system prompt
+  </Step>
+  <Step title="Tool Called">
+    The LLM decides to call `search_knowledge_base` with appropriate arguments
+  </Step>
+  <Step title="Tool Executes">
+    Your tool function runs and returns results
+  </Step>
+  <Step title="LLM Responds">
+    The LLM receives tool results and generates a final response
+  </Step>
+  <Step title="Response Streams">
+    The response streams back to the client in real-time
+  </Step>
+  <Step title="State Persists">
+    Everything is saved to the thread's SQLite database
+  </Step>
+</Steps>
+
+## Next Steps
+
+Congratulations! You've built your first AI agent. Here's what to explore next:
+
+<CardGroup cols={2}>
+  <Card title="Add More Tools" icon="wrench" href="/core-concepts/tools">
+    Create tools for APIs, databases, and external services
+  </Card>
+  <Card title="Advanced Prompts" icon="message" href="/core-concepts/prompts">
+    Use prompt includes, reasoning, and multi-step workflows
+  </Card>
+  <Card title="Dual-AI Agents" icon="robot" href="/core-concepts/agents">
+    Create agents that converse with each other
+  </Card>
+  <Card title="React Integration" icon="react" href="/packages/react">
+    Build a frontend with @standardagents/react
+  </Card>
+</CardGroup>
+
+## Common Customizations
+
+<AccordionGroup>
+  <Accordion title="Add multiple tools">
+    Just add more tool files to `agents/tools/` and reference them in your prompt:
+
+    ```typescript
+    export default definePrompt({
+      // ...
+      tools: ['search_knowledge_base', 'create_ticket', 'check_order_status'],
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Switch LLM providers">
+    Create models for different providers:
+
+    ```typescript agents/models/claude-sonnet.ts
+    import { defineModel } from '@standardagents/builder'
+
+    export default defineModel({
+      name: 'claude-sonnet',
+      model: 'claude-3-5-sonnet-20241022',
+      provider: 'anthropic',
+      inputPrice: 3,
+      outputPrice: 15,
+    })
+    ```
+
+    Then update your prompt to use it:
+
+    ```typescript
+    export default definePrompt({
+      model: 'claude-sonnet',
+      // ...
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Add conversation history limits">
+    Control how much context is sent to the LLM:
+
+    ```typescript
+    export default definePrompt({
+      // ...
+      maxTurns: 10, // Only include last 10 exchanges
+      maxTokens: 4000, // Limit context size
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Add error handling in your tools:
+
+    ```typescript
+    export default defineTool(
+      "Search knowledge base",
+      schema,
+      async (flow, args) => {
+        try {
+          const results = await searchAPI(args.query)
+          return { status: 'success', result: JSON.stringify(results) }
+        } catch (error) {
+          return {
+            status: 'error',
+            error: `Search failed: ${error.message}`
+          }
+        }
+      }
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Tips for Better Agents
+
+<Tip>
+**Be specific in prompts**: The more detailed your system prompt, the better your agent will perform. Include examples, guidelines, and edge cases.
+</Tip>
+
+<Tip>
+**Test tool combinations**: Try different scenarios to see how your agent uses tools. Sometimes it helps to be explicit: "Use search_knowledge_base before answering."
+</Tip>
+
+<Tip>
+**Monitor costs**: Use the admin UI to track token usage and costs. Optimize by using smaller models for simple tasks.
+</Tip>
+
+<Tip>
+**Version your prompts**: Create multiple prompt files (e.g., `support-prompt-v1.ts`, `support-prompt-v2.ts`) to A/B test different approaches.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent not appearing in UI">
+    - Make sure you restarted the dev server after creating files
+    - Check for syntax errors in your TypeScript files
+    - Verify the file is in the correct directory (`agents/agents/`)
+  </Accordion>
+
+  <Accordion title="Tool not being called">
+    - Check that the tool is listed in the prompt's `tools` array
+    - Make sure the tool description clearly explains when to use it
+    - Try being more explicit in your message (e.g., "Search for information about...")
+  </Accordion>
+
+  <Accordion title="Model not found">
+    - Verify your API key is set in `.dev.vars`
+    - Check that the model name in your prompt matches the model file name
+    - Ensure the provider is correct (`openai`, `anthropic`, `google`, `openrouter`)
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+Need help? Check out the [Architecture](/introduction/architecture) guide to understand how everything fits together.
+</Note>
