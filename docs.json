@@ -62,26 +62,11 @@
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/agentbuilder-org/agentbuilder",
-          "icon": "github"
-        },
-        {
-          "anchor": "NPM",
-          "href": "https://www.npmjs.com/package/@agentbuilder/vite",
-          "icon": "npm"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/images/agent-builder-logo-light.svg",
-    "dark": "/images/agent-builder-logo-dark.svg",
-    "height": 60
+    "dark": "/images/agent-builder-logo-dark.svg"
   },
   "navbar": {
     "links": [
@@ -92,20 +77,6 @@
     ]
   },
   "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/agentbuilder-org/agentbuilder"
-    }
+    "options": ["copy", "view", "chatgpt", "claude"]
   }
 }
