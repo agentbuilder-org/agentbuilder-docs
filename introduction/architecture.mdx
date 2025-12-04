@@ -3,558 +3,81 @@ title: 'Architecture'
 description: 'Understanding how Standard Agents works under the hood'
 ---
 
-# Architecture Overview
+# Makeup of a Standard Agent
 
-Standard Agents is built on Cloudflare's edge infrastructure, providing a serverless, globally distributed platform for AI agents. This guide explains the key architectural components and how they work together.
+In order to create a Standard Agent, you define the following:
 
-## High-Level Architecture
+- **Models**: defines an LLM provider (currently supports OpenRouter and OpenAI) and model and fallbacks.
+- **Tools**: a typescript function that can be called by an agent. This is where most business integration logic lives.
+- **Prompts**: a prompt defines what the LLM will receive on any given turn of a conversation, including the system message, the available tools, the message history, and more.
+- **Agents**: an agent defines the structure and behavior of a conversation, including the type of conversation (AI-Human or Dual-AI), the initial prompt to use, limits on the number of turns, and what ends one side's turns and yields the conversation to the other side.
 
-<Frame>
-  <img src="/images/architecture-diagram.png" alt="Standard Agents Architecture" />
-</Frame>
+```mermaid
+graph TD
+    A[Agent] --> P1[Prompt]
+    P1 --> M1[Model]
+    M1 --> M2[Model]
+    P1 --> T1
 
-Standard Agents consists of three main layers:
+    subgraph T1[Tools]
+        direction LR
+        F[Function]
+        P2[Prompt]
+        A2[Agent]
+    end
+    P2 --> M3[Model]
+    M3 --> M4[Model]
+    P2 --> T2[Tools...]
 
-<CardGroup cols={3}>
-  <Card title="Routing Layer" icon="route">
-    Cloudflare Workers handle HTTP requests, WebSocket connections, and UI serving
-  </Card>
-  <Card title="State Layer" icon="database">
-    Durable Objects manage conversation threads with isolated SQLite storage
-  </Card>
-  <Card title="Data Layer" icon="server">
-    D1 database stores global metadata (optional)
-  </Card>
-</CardGroup>
+    style A fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    style P1 fill:#3b82f6,stroke:#2563eb,color:#fff
+    style P2 fill:#3b82f6,stroke:#2563eb,color:#fff
+    style T1 fill:transparent,stroke:#f59e0b,stroke-dasharray:5 5
+    style T2 fill:#f59e0b,stroke:#d97706,color:#fff
+    style F fill:#f59e0b,stroke:#d97706,color:#fff
+    style M1 fill:#10b981,stroke:#059669,color:#fff
+    style M2 fill:#10b981,stroke:#059669,color:#fff
+    style M3 fill:#6b7280,stroke:#4b5563,color:#fff
+    style M4 fill:#d1d5db,stroke:#9ca3af,color:#6b7280
+    style T2 fill:transparent,stroke:#9ca3af,stroke-dasharray:5 5,color:#9ca3af
+    style A2 fill:#8b5cf6,stroke:#7c3aed,color:#fff
+```
 
-## Cloudflare Primitives
+Structurally an agent has a single prompt, a prompt can have many tools (which can be TypeScript functions, prompts, or agents) and a model, and a model can have multiple fallback models.
 
-Standard Agents leverages Cloudflare's infrastructure primitives to provide a serverless, stateful platform.
 
-### Cloudflare Workers
+## Threads
 
-**Purpose**: Serverless compute for request handling
+To actually run an agent, you create a new thread specifying which agent you want to use. In other words you can think of a thread as an instance of an agent.
 
-Workers are JavaScript functions that run on Cloudflare's edge network:
-- Handle incoming HTTP requests
-- Route to appropriate handlers (API, UI, threads)
-- Serve the admin UI as static assets
-- Establish WebSocket connections for streaming
-- Execute in &lt;1ms cold start time
+Each thread is backed by a single Cloudflare DurableObject instance (defined in your `wrangler.jsonc` file as `DurableThread`). Each thread has its own SQLite database that stores the message history of that thread, the execution state of the agent, and detailed logs of the agent's execution.
 
-<Accordion title="How routing works">
-```typescript
-// server/index.ts
-export default {
-  async fetch(request, env) {
-    const response = await router(request, env)
-    return response ?? new Response(null, { status: 404 })
-  },
+To create a thread, you can use the '+ New Thread' button in the AgentBuilder UI, or you can submit a HTTP request to the `{mountPoint}/api/threads` endpoint.
+
+```bash
+curl -X POST "https://example.com/api/threads" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "weather_agent",
+    "tags": ["type:weather", "user:jane"]
+  }'
+```
+
+If successful the response will be a JSON object containing the threadId:
+
+```json
+{
+  "threadId": "123e4567-e89b-12d3-a456-426614174000",
+  "agent_id": "weather_agent",
+  "message": "Thread created successfully"
 }
 ```
 
-The `router` function handles:
-- `/` → Admin UI (Vue SPA)
-- `/api/threads` → Thread CRUD operations
-- `/api/threads/:id/message` → Send messages
-- `/api/threads/:id/stream` → WebSocket streaming
-- `/api/threads/:id/*` → Custom thread endpoints
-</Accordion>
+A thread's `id` is a cryptographically unique identifier for a given conversation. Keeping track of this id in your client code is important as it allows you to communicate directly with the thread's DurableObject instance.
+<Warning>
+  Depending on your use case this id may need to be treated as an authentication token. Anyone with the `threadId` has full access to the thread's data.
+</Warning>
 
-### Durable Objects
-
-**Purpose**: Stateful, isolated conversation threads
-
-Each conversation thread is a Durable Object instance:
-
-<CardGroup cols={2}>
-  <Card title="Isolated SQLite" icon="database">
-    Each thread gets its own SQLite database stored on disk
-  </Card>
-  <Card title="Single-Threaded" icon="lock">
-    Requests to the same thread are serialized for consistency
-  </Card>
-  <Card title="Persistent State" icon="save">
-    Data survives Worker restarts and redeployments
-  </Card>
-  <Card title="Global Routing" icon="globe">
-    Automatically routes to the correct data center
-  </Card>
-</CardGroup>
-
-**Thread Storage**:
-Each thread's SQLite database contains:
-
-```
-messages              # Message history with parent/child relationships
-  ├─ id              # Unique message ID
-  ├─ role            # user, assistant, system
-  ├─ content         # Message text
-  ├─ parent_id       # For nested conversations
-  └─ created_at      # Timestamp
-
-tool_calls           # Record of all tool executions
-  ├─ id              # Tool call ID
-  ├─ name            # Tool name
-  ├─ arguments       # JSON arguments
-  ├─ result          # Tool output
-  └─ status          # success, error, pending
-
-execution_logs       # Debugging and telemetry
-  ├─ level           # info, warning, error
-  ├─ message         # Log message
-  └─ timestamp       # When it occurred
-
-metadata             # Thread configuration
-  ├─ agent_id        # Which agent is running
-  ├─ tags            # User-defined labels
-  └─ state           # Custom state data
-```
-
-<Accordion title="Why Durable Objects?">
-Durable Objects provide strong consistency and isolated state without managing database infrastructure:
-
-- **No connection pooling**: Each thread has direct SQLite access
-- **No latency**: Storage is colocated with compute
-- **No scaling concerns**: Cloudflare handles distribution automatically
-- **Transactional**: SQLite guarantees ACID properties
-- **Cost-efficient**: Storage is included with Durable Objects pricing
-</Accordion>
-
-### D1 Database (Optional)
-
-**Purpose**: Global metadata storage
-
-While thread state lives in Durable Objects, global configurations can optionally be stored in D1:
-
-```
-agents               # Agent definitions
-prompts              # System prompts and configurations
-models               # LLM model settings
-providers            # API provider configurations
-```
-
-<Info>
-D1 is optional. You can configure everything in code (recommended for production) or use D1 for dynamic configuration through the admin UI.
-</Info>
-
-## Project Structure
-
-Standard Agents uses a file-based auto-discovery system:
-
-```
-your-project/
-├── server/
-│   └── index.ts          # Worker entry point
-│
-├── agents/               # Auto-discovered user code
-│   ├── agents/          # defineAgent() exports
-│   │   └── support.ts
-│   ├── prompts/         # definePrompt() exports
-│   │   └── support-prompt.ts
-│   ├── models/          # defineModel() exports
-│   │   └── gpt-4o.ts
-│   ├── tools/           # defineTool() exports
-│   │   └── search.ts
-│   ├── hooks/           # Lifecycle hooks
-│   │   └── filter-messages.ts
-│   └── api/             # defineThreadEndpoint() exports
-│       └── export.ts
-│
-├── wrangler.jsonc       # Cloudflare configuration
-├── vite.config.ts       # Build configuration
-└── package.json
-```
-
-<Note>
-Files are automatically discovered at build time. No manual registration required!
-</Note>
-
-## Virtual Modules
-
-Standard Agents uses Vite virtual modules to generate dynamic imports:
-
-### How It Works
-
-<Steps>
-  <Step title="Discovery">
-    The Vite plugin scans `agents/` directories for TypeScript files
-  </Step>
-  <Step title="Generation">
-    Creates virtual imports like `virtual:@standardagents/builder`
-  </Step>
-  <Step title="Type Safety">
-    Generates TypeScript definitions via `cf-typegen`
-  </Step>
-  <Step title="Hot Reload">
-    Watches for file changes and regenerates on the fly
-  </Step>
-</Steps>
-
-### Virtual Module Structure
-
-```typescript
-// virtual:@standardagents/builder
-export const router: RouterFunction
-export const agents: Map<string, AgentDefinition>
-export const prompts: Map<string, PromptDefinition>
-export const models: Map<string, ModelDefinition>
-export const tools: Map<string, ToolFunction>
-export const hooks: LifecycleHook[]
-export const endpoints: Map<string, EndpointHandler>
-```
-
-<Accordion title="Why virtual modules?">
-Virtual modules enable:
-
-1. **Zero Configuration**: No manual registration of agents, tools, or prompts
-2. **Type Safety**: Full IntelliSense for all discovered resources
-3. **Hot Module Replacement**: Changes appear immediately in dev mode
-4. **Tree Shaking**: Unused code is eliminated from production builds
-5. **Framework Isolation**: User code stays separate from framework code
-</Accordion>
-
-## Conversation Flow Engine
-
-The flow engine orchestrates conversation turns, tool execution, and state management.
-
-### Turn-Based Execution
-
-<Steps>
-  <Step title="Message Received">
-    User sends a message via API or WebSocket
-  </Step>
-  <Step title="Load Context">
-    Thread loads message history from SQLite
-  </Step>
-  <Step title="Prepare Prompt">
-    System prompt + message history + available tools
-  </Step>
-  <Step title="LLM Request">
-    Streaming request to OpenAI/Anthropic/Google/etc.
-  </Step>
-  <Step title="Tool Calls?">
-    If LLM requests tools, execute them sequentially
-  </Step>
-  <Step title="Tool Results">
-    Inject tool results back into conversation
-  </Step>
-  <Step title="Generate Response">
-    LLM produces final response using tool results
-  </Step>
-  <Step title="Check Stop Condition">
-    Evaluate if conversation should continue
-  </Step>
-  <Step title="Persist State">
-    Save messages and logs to SQLite
-  </Step>
-  <Step title="Stream to Client">
-    WebSocket pushes updates in real-time
-  </Step>
-</Steps>
-
-### Stop Conditions
-
-Agents can stop execution based on conditions:
-
-<Tabs>
-  <Tab title="stopOnResponse">
-    Stop after the agent returns a content response (typical for chatbots)
-  </Tab>
-  <Tab title="stopTool">
-    Stop when a specific tool is called
-    ```typescript
-    definePrompt({
-      stopTool: 'end_conversation',
-      // Stops when end_conversation tool is invoked
-    })
-    ```
-  </Tab>
-  <Tab title="maxTurns">
-    Limit maximum conversation turns to prevent runaway loops
-    ```typescript
-    definePrompt({
-      maxTurns: 10,
-      // Stops after 10 back-and-forth exchanges
-    })
-    ```
-  </Tab>
-  <Tab title="Custom Hook">
-    Implement custom logic in a lifecycle hook
-    ```typescript
-    defineHook({
-      shouldStopFlow: async (flow) => {
-        return flow.state.userSatisfied === true
-      }
-    })
-    ```
-  </Tab>
-</Tabs>
-
-### Tool Execution
-
-Tools are executed sequentially (not in parallel):
-
-<Accordion title="Why sequential?">
-Sequential execution provides:
-- **Predictable order**: Easier to debug and reason about
-- **State consistency**: Tools can depend on previous results
-- **Simple error handling**: One tool failure doesn't affect others
-- **LLM compatibility**: Matches how most LLMs generate tool calls
-</Accordion>
-
-## Agent Types
-
-Standard Agents supports two conversation patterns:
-
-### AI-Human (`ai_human`)
-
-**Use case**: Chatbots, assistants, customer support
-
-```typescript
-defineAgent({
-  type: 'ai_human',
-  // AI responds to human messages
-})
-```
-
-Flow:
-1. Human sends message
-2. AI processes and responds
-3. Human sends next message
-4. Repeat until stop condition
-
-### Dual-AI (`dual_ai`)
-
-**Use case**: AI-to-AI conversations, debate simulations, multi-perspective analysis
-
-```typescript
-defineAgent({
-  type: 'dual_ai',
-  sideA: 'analyst-prompt',
-  sideB: 'critic-prompt',
-})
-```
-
-Flow:
-1. Side A sends message
-2. Side B responds
-3. Side A responds to Side B
-4. Repeat until stop condition
-
-<Info>
-In dual-AI mode, the engine automatically switches sides after each turn.
-</Info>
-
-## Lifecycle Hooks
-
-Hooks let you customize execution flow:
-
-```typescript
-// agents/hooks/filter-sensitive-data.ts
-import { defineHook } from '@standardagents/builder'
-
-export default defineHook({
-  name: 'filter-sensitive-data',
-
-  // Before sending to LLM
-  beforeLLMRequest: async (flow, messages) => {
-    return messages.map(m => ({
-      ...m,
-      content: m.content.replace(/\d{16}/g, '[REDACTED]')
-    }))
-  },
-
-  // After receiving response
-  afterLLMResponse: async (flow, message) => {
-    // Log, transform, or validate
-    return message
-  },
-
-  // Custom stop logic
-  shouldStopFlow: async (flow) => {
-    return flow.turns > 20
-  }
-})
-```
-
-<Note>
-Hooks are best-effort and non-blocking. If a hook throws an error, execution continues.
-</Note>
-
-## WebSocket Streaming
-
-Real-time updates are delivered via WebSocket:
-
-### Message Types
-
-<Tabs>
-  <Tab title="message.start">
-    New message is starting
-    ```json
-    {
-      "type": "message.start",
-      "message_id": "msg_123",
-      "role": "assistant"
-    }
-    ```
-  </Tab>
-  <Tab title="message.delta">
-    Content chunk received
-    ```json
-    {
-      "type": "message.delta",
-      "message_id": "msg_123",
-      "delta": "Hello, how can I help you?"
-    }
-    ```
-  </Tab>
-  <Tab title="tool.start">
-    Tool execution starting
-    ```json
-    {
-      "type": "tool.start",
-      "tool_id": "tool_456",
-      "name": "search_knowledge_base",
-      "arguments": { "query": "return policy" }
-    }
-    ```
-  </Tab>
-  <Tab title="tool.complete">
-    Tool execution finished
-    ```json
-    {
-      "type": "tool.complete",
-      "tool_id": "tool_456",
-      "status": "success",
-      "result": "..."
-    }
-    ```
-  </Tab>
-  <Tab title="message.complete">
-    Message finished
-    ```json
-    {
-      "type": "message.complete",
-      "message_id": "msg_123"
-    }
-    ```
-  </Tab>
-</Tabs>
-
-## Deployment Model
-
-Standard Agents deploys as a single Cloudflare Worker:
-
-<Frame>
-  <img src="/images/deployment-model.png" alt="Deployment Model" />
-</Frame>
-
-### What Gets Deployed
-
-<Steps>
-  <Step title="Worker Bundle">
-    Compiled JavaScript with your agents, prompts, and tools
-  </Step>
-  <Step title="Admin UI Assets">
-    Vue SPA bundled and served from Worker
-  </Step>
-  <Step title="Durable Objects">
-    Runtime classes for thread and metadata management
-  </Step>
-  <Step title="Environment Variables">
-    LLM API keys and configuration
-  </Step>
-</Steps>
-
-### Global Distribution
-
-<CardGroup cols={2}>
-  <Card title="300+ Locations" icon="earth">
-    Your agent runs in data centers worldwide
-  </Card>
-  <Card title="Automatic Routing" icon="route">
-    Users connect to the nearest edge location
-  </Card>
-  <Card title="Thread Affinity" icon="link">
-    Each thread routes to its home data center
-  </Card>
-  <Card title="<50ms Latency" icon="bolt">
-    Serve most requests in under 50 milliseconds
-  </Card>
-</CardGroup>
-
-## Performance Characteristics
-
-### Cold Start
-
-- **Workers**: &lt;1ms (V8 isolates, not containers)
-- **Durable Objects**: &lt;50ms (SQLite initialization)
-
-### Request Latency
-
-- **Thread creation**: ~50ms
-- **Message send**: ~100ms + LLM latency
-- **Tool execution**: Depends on tool logic
-- **WebSocket streaming**: Real-time chunks as received
-
-### Scaling
-
-- **Automatic**: Cloudflare handles all scaling
-- **No limits**: Serve millions of conversations
-- **Cost**: Pay only for compute time and storage
-
-<Info>
-Durable Objects scale by distributing threads across the global network. Each thread can handle one request at a time, ensuring consistency.
-</Info>
-
-## Security Model
-
-<CardGroup cols={2}>
-  <Card title="Isolated Storage" icon="shield">
-    Each thread's SQLite database is isolated from others
-  </Card>
-  <Card title="Encrypted at Rest" icon="lock">
-    All Durable Object storage is encrypted
-  </Card>
-  <Card title="Secure Secrets" icon="key">
-    API keys stored as Cloudflare secrets
-  </Card>
-  <Card title="HTTPS Only" icon="globe">
-    All traffic is encrypted in transit
-  </Card>
-</CardGroup>
-
-## Comparison to Traditional Architectures
-
-<Tabs>
-  <Tab title="Standard Agents">
-    ✅ No servers to manage
-
-    ✅ Global edge deployment
-
-    ✅ Built-in persistence
-
-    ✅ Automatic scaling
-
-    ✅ Sub-50ms latency
-
-    ✅ Pay per request
-  </Tab>
-  <Tab title="Traditional Stack">
-    ❌ Manage servers, databases, load balancers
-
-    ❌ Single region deployment
-
-    ❌ Configure PostgreSQL, Redis, etc.
-
-    ❌ Manual autoscaling setup
-
-    ❌ Variable latency based on location
-
-    ❌ Fixed monthly costs
-  </Tab>
-</Tabs>
 
 ## Next Steps
 
@@ -572,19 +95,3 @@ Durable Objects scale by distributing threads across the global network. Each th
     Production deployment guidelines
   </Card>
 </CardGroup>
-
-## Further Reading
-
-<AccordionGroup>
-  <Accordion title="Cloudflare Workers Documentation">
-    Learn more about the underlying platform: [workers.cloudflare.com](https://workers.cloudflare.com)
-  </Accordion>
-
-  <Accordion title="Durable Objects Documentation">
-    Deep dive into stateful Workers: [developers.cloudflare.com/durable-objects](https://developers.cloudflare.com/durable-objects/)
-  </Accordion>
-
-  <Accordion title="D1 Database Documentation">
-    Explore Cloudflare's serverless SQL: [developers.cloudflare.com/d1](https://developers.cloudflare.com/d1/)
-  </Accordion>
-</AccordionGroup>

@@ -5,26 +5,88 @@ description: 'Get Standard Agents up and running in your project'
 
 # Installation Guide
 
-AgentBuilder is a vite plugin that can run as a standalone application, or mount at a subpath of an existing vite application. AgentBuilder can be run locally for development and must be deployed to Cloudflare Workers for production.
+Standard Agents is a Vite plugin that runs as a standalone application or mounts at a subpath of an existing Vite application. It can run locally for development and must be deployed to Cloudflare Workers for production.
 
-## Step 1: Create a Vite cloudflare application
+## Quick Start (Recommended)
 
-First we need to create our cloudflare-based vite application.
+The easiest way to get started is using our CLI to create a new project:
 
+<CodeGroup>
+
+```bash npm
+npx @standardagents/cli init my-agent-project
 ```
-pnpm add -D vite @cloudflare/vite-plugin @standardagents/builder @standardagents/cli wrangler
+
+```bash pnpm
+pnpm dlx @standardagents/cli init my-agent-project
+```
+
+```bash yarn
+yarn dlx @standardagents/cli init my-agent-project
+```
+
+```bash bun
+bunx @standardagents/cli init my-agent-project
+```
+
+</CodeGroup>
+
+This command will:
+1. Create a new Vite project using `create vite`
+2. Install the required dependencies (`@cloudflare/vite-plugin`, `@standardagents/builder`, `wrangler`)
+3. Configure your `vite.config.ts` with the necessary plugins
+4. Create `wrangler.jsonc` with Durable Object bindings
+5. Set up the worker entry point and Durable Object classes
+6. Create the `agents/` directory structure with documentation
+
+Once complete, start the development server:
+
+```bash
+cd my-agent-project
+npm run dev
+```
+
+## Adding to an Existing Project
+
+If you already have a Vite project and want to add Standard Agents:
+
+```bash
+npx @standardagents/cli scaffold
+```
+
+The `scaffold` command intelligently modifies your existing project:
+- Adds `cloudflare()` and `agentbuilder()` plugins to your `vite.config.ts`
+- Creates or updates `wrangler.jsonc` with required bindings
+- Sets up the worker entry point with the Standard Agents router
+- Creates the `agents/` directory structure
+
+<Info>
+Use `--force` flag to overwrite existing configuration if needed.
+</Info>
+
+---
+
+## Manual Installation
+
+If you prefer to set things up manually, follow these steps:
+
+### Step 1: Install Dependencies
+
+```bash
+npm install -D vite @cloudflare/vite-plugin @standardagents/builder wrangler
 ```
 
 <Info>
 AgentBuilder's UI is pre-compiled, so there is no need to use a front end framework. However if you plan to use the Vite application to host more than just AgentBuilder, you can also install those frameworks.
 </Info>
 
-## Step 2: Configure the Vite plugins
+### Step 2: Configure the Vite Plugins
 
-The second step is to configure the Cloudflare and AgentBuilder plugins. Open your `vite.config.ts` file and add the following plugins:
+Open your `vite.config.ts` file and add the following plugins:
 
 ```typescript
 import { defineConfig } from 'vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import { agentbuilder } from '@standardagents/builder'
 
 export default defineConfig({
@@ -32,28 +94,26 @@ export default defineConfig({
 })
 ```
 
-## Step 3: Configure cloudflare bindings
+### Step 3: Configure Cloudflare Bindings
 
-AgentBuilder uses Cloudflare's Durable Objects and expects certain bindings to be configured in your `wrangler.jsonc` file, as well as an ASSETS binding to serve the AgentBuilder UI. To do this, create a new file called `wrangler.jsonc` in the root of your project and add the following:
+Create a `wrangler.jsonc` file in the root of your project:
 
 ```jsonc
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "your-project-name",
   "main": "worker/index.ts",
-	"compatibility_date": "2025-11-07",
+  "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
-	"observability": {
-		"enabled": true
-	},
-	"assets": {
-		"directory": "dist",
-		"not_found_handling": "single-page-application",
-		"binding": "ASSETS",
-		"run_worker_first": [
-			"/**"
-		]
-	},
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/**"]
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -79,9 +139,9 @@ AgentBuilder uses Cloudflare's Durable Objects and expects certain bindings to b
 }
 ```
 
-## Step 4: Create the Durable Objects
+### Step 4: Create the Durable Objects
 
-Next we need to create a new directory `agents` in the root of our project, and add two new files: `Thread.ts` and `AgentBuilder.ts`. These are the Durable Objects that will be used to store AgentBuilder's state and each thread's state.
+Create an `agents` directory in the root of your project with two files:
 
 ```typescript
 // agents/Thread.ts
@@ -97,15 +157,15 @@ import { DurableAgentBuilder } from 'virtual:@standardagents/builder'
 export default class AgentBuilder extends DurableAgentBuilder {}
 ```
 
-Additionally, create the following empty directories in the `agents` directory:
+Also create the following directories for your agent configuration:
 
-```sh
+```bash
 mkdir -p agents/agents agents/prompts agents/models agents/tools agents/hooks agents/api
 ```
 
-## Step 5: Worker entry point
+### Step 5: Worker Entry Point
 
-Finally, create a new directory called `worker` in the root of your project and add a new file called `index.ts` with the following content. This is the entry point for your Cloudflare Worker, and responsible for delegating requests to the AgentBuilder router:
+Create a `worker` directory with an `index.ts` file:
 
 ```typescript
 // worker/index.ts
@@ -123,39 +183,64 @@ export default {
 export { DurableThread, DurableAgentBuilder }
 ```
 
-## Step 6: Types
+### Step 6: TypeScript Configuration
 
-Types for your agents are automatically generated and placed in the `.agents` directory. Additionally, the cloudflare can generate types for it's own bindings too. To leverage both of these add this typing to your project add the following to your `tsconfig.json` file:
+Add the following to your `tsconfig.json` to enable type checking:
 
 ```json
-"compilerOptions": {
-		"types": [
-			"./worker-configuration.d.ts",
+{
+  "compilerOptions": {
+    "types": [
+      "./worker-configuration.d.ts",
       ".agents/types.d.ts",
       ".agents/virtual-module.d.ts"
-		]
-	}
+    ]
+  },
+  "include": ["worker", "agents"]
+}
 ```
 
-To generate the cloudflare types run the following command:
+Generate the Cloudflare types:
 
 ```bash
 npx wrangler types
 ```
 
-This will generate a `worker-configuration.d.ts` file in the root of your project. AgentBuilder types are generated with running the `dev` command.
+This creates a `worker-configuration.d.ts` file. AgentBuilder types are generated when running the `dev` command.
 
-## Step 7: Start the development server
-
-You can now start the development server with the following command:
+### Step 7: Start Development
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 <Info>
- The development server will automatically generate the types for your agents, prompts, tools, and API routes, and spin up "miniflare" which is a local simulation of the Cloudflare worker environment.
+The development server will automatically generate types for your agents, prompts, tools, and API routes, and spin up "miniflare" which is a local simulation of the Cloudflare Worker environment.
 </Info>
+
+---
+
+## Project Structure
+
+After installation, your project will have this structure:
+
+```
+your-project/
+├── agents/
+│   ├── Thread.ts           # Durable Object for conversation threads
+│   ├── AgentBuilder.ts     # Durable Object for agent state
+│   ├── agents/             # Agent definitions
+│   ├── prompts/            # Prompt/system message definitions
+│   ├── models/             # AI model configurations
+│   ├── tools/              # Custom tools agents can call
+│   ├── hooks/              # Lifecycle hooks
+│   └── api/                # Thread-specific API endpoints
+├── worker/
+│   └── index.ts            # Cloudflare Worker entry point
+├── vite.config.ts          # Vite configuration
+├── wrangler.jsonc          # Cloudflare Workers configuration
+└── tsconfig.json           # TypeScript configuration
+```
 
 ## Next Steps
 

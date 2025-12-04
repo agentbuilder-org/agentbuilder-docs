@@ -16,20 +16,18 @@
           {
             "group": "Getting Started",
             "pages": [
-              "index",
               "introduction/overview",
               "introduction/installation",
-              "introduction/quick-start",
               "introduction/architecture"
             ]
           },
           {
             "group": "Core Concepts",
             "pages": [
-              "core-concepts/agents",
-              "core-concepts/prompts",
-              "core-concepts/tools",
               "core-concepts/models",
+              "core-concepts/tools",
+              "core-concepts/prompts",
+              "core-concepts/agents",
               "core-concepts/hooks",
               "core-concepts/flowstate"
             ]
