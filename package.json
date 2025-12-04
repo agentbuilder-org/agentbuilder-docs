@@ -1,0 +1,17 @@
+{
+  "name": "standardagents-builder-docs",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "mint dev"
+  },
+  "keywords": [],
+  "author": "",
+  "packageManager": "pnpm@10.14.0",
+  "devDependencies": {
+    "mint": "^4.2.223"
+  }
+}

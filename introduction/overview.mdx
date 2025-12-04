@@ -1,36 +1,25 @@
 ---
 title: 'Overview'
-description: 'Build production AI agents on Cloudflare Workers with Standard Agents'
+description: 'What is the Standard Agents Builder and what do you build with it?'
 ---
 
-# What Is Standard Agents?
+# What Is Standard Agent Builder?
 
-Standard Agents is a framework for creating conversational AI agents that run on Cloudflare's edge network. It provides everything you need to build, deploy, and scale AI-powered applications without managing infrastructure.
+Standard Agents are portable agents that adhere to the (not yet released) Standard Agent Specification. The Standard Agent Builder (we'll call it AgentBuilder) is a first-party tool for building, deploying, and managing Standard Agents.
 
-<CardGroup cols={2}>
-  <Card title="Edge Deployment" icon="globe">
-    Run globally with &lt;50ms latency via Cloudflare Workers
-  </Card>
-  <Card title="Durable Conversations" icon="database">
-    Each thread backed by a Durable Object with persistent SQLite storage
-  </Card>
-  <Card title="Custom Tools" icon="wrench">
-    Extend agents with your own functions via simple file-based registration
-  </Card>
-  <Card title="Zero Infrastructure" icon="sparkles">
-    No servers to manage - deploy with `wrangler deploy`
-  </Card>
-</CardGroup>
+Standard Agents are designed to be finely tuned to specific tasks, workflows, or business use cases. Rather than assume a single model is the best fit for every task, Standard Agents empowers you — the engineer - to determine what tradeoffs are best for your use case. Once built, Standard Agents can be composed into larger Agents that have multiple capabilities, or even deployed as MCP tools for use in third party applications.
+
+AgentBuilder is a vite plugin that provides a complete development, deployment, and management experience for Standard Agents. It includes a built-in admin UI for testing and monitoring agents, a CLI for scaffolding and managing projects, and a SDK for building and extending agents. Each AgentBuilder instance produces a standard API for each Standard Agent it deploys, so you can easily integrate them into your own applications.
 
 ## Key Features
 
 <AccordionGroup>
   <Accordion title="Persistent Conversation Threads">
-    Every conversation thread is backed by a Cloudflare Durable Object with its own isolated SQLite database. This means:
+    Every agent thread is backed by a Cloudflare Durable Object with its own isolated SQLite database. This means:
     - Message history is automatically persisted
-    - Execution logs and tool calls are tracked
+    - Execution logs and tool calls are tracked on a per-thread basis
     - Conversation state is maintained across requests
-    - No external database needed
+    - Each thread is fully isolated
   </Accordion>
 
   <Accordion title="Built-in Admin UI">
@@ -42,94 +31,16 @@ Standard Agents is a framework for creating conversational AI agents that run on
   </Accordion>
 
   <Accordion title="File-Based Auto-Discovery">
-    Define agents, prompts, models, and tools as TypeScript files. No manual registration required:
-    - Drop files into the `agents/` directory
-    - Framework automatically discovers and loads them
-    - Hot reload during development
-    - Type-safe with full IntelliSense
-  </Accordion>
-
-  <Accordion title="Flexible Tool System">
-    Extend your agents with custom tools using three approaches:
-    - **Native Tools**: TypeScript functions with Zod schemas
-    - **Prompt Tools**: Chain prompts together for complex workflows
-    - **Agent Tools**: Create child threads for specialized tasks
+    All agents, prompts, models, and tools are defined as type-safe TypeScript files.
+    - All files in the `agents/` directory are automatically discovered and loaded
+    - Agents, prompts, models, tools, and hooks are all committed to source control.
+    - Admin UI reads and writes directly to these TypeScript files.
+    - Type-safe with TypeScript autocomplete for the defined tools, prompts, models, and agents.
   </Accordion>
 </AccordionGroup>
 
-## How It Works
-
-Standard Agents leverages Cloudflare's infrastructure primitives:
-
-<Steps>
-  <Step title="Workers">
-    Serverless functions handle routing, API requests, and UI serving
-  </Step>
-  <Step title="Durable Objects">
-    Stateful conversation threads with isolated SQLite databases store message history, logs, and state
-  </Step>
-  <Step title="D1 (Optional)">
-    Global metadata storage for agent configurations, models, and providers
-  </Step>
-</Steps>
-
-### Conversation Flow
-
-When a user sends a message to an agent:
-
-1. **Request arrives** at a Cloudflare Worker
-2. **Durable Object loads** the conversation thread from SQLite
-3. **Agent processes** the message using configured LLM and tools
-4. **Tools execute** if needed (web search, database queries, etc.)
-5. **Response streams** back to the client in real-time
-6. **State persists** automatically in SQLite
-
-## Agent Capabilities
-
-<CardGroup cols={2}>
-  <Card title="AI-Human Conversations" icon="comments">
-    Create chatbots and assistants that interact with users
-  </Card>
-  <Card title="Dual-AI Conversations" icon="robot">
-    Let two AI agents converse with each other for complex reasoning
-  </Card>
-  <Card title="Custom Tool Integration" icon="plug">
-    Connect to APIs, databases, and external services
-  </Card>
-  <Card title="Multi-Step Workflows" icon="diagram-project">
-    Chain prompts and create child threads for complex tasks
-  </Card>
-</CardGroup>
-
-## Why Standard Agents?
-
-<Info>
-Standard Agents is built specifically for production deployments with enterprise-grade reliability and performance.
-</Info>
-
-### Developer Experience
-
-- **Zero Configuration**: Sensible defaults get you started instantly
-- **Type-Safe**: Full TypeScript support with generated types
-- **Hot Reload**: Changes appear immediately during development
-- **Code-First**: Configure everything in TypeScript (no database admin needed)
-
-### Performance & Scale
-
-- **Global Edge Network**: Deploy to 300+ cities worldwide
-- **Sub-50ms Latency**: Serve users from the nearest data center
-- **Auto-Scaling**: Handle traffic spikes automatically
-- **Isolated Storage**: Each thread gets its own SQLite instance
-
-### Cost Efficiency
-
-- **Serverless Pricing**: Pay only for what you use
-- **No Database Costs**: SQLite storage included with Durable Objects
-- **Efficient Execution**: Workers use minimal resources
-- **Built-in Caching**: Reduce LLM API calls automatically
-
 <Note>
-Standard Agents is proprietary software owned by FormKit Inc. For licensing inquiries, contact enterprise@formkit.com
+Standard Agent Builder is proprietary software owned by FormKit Inc. For licensing inquiries, contact enterprise@formkit.com. However, the Standard Agent Specification is open source and free to use.
 </Note>
 
 ## Next Steps
@@ -138,11 +49,8 @@ Standard Agents is proprietary software owned by FormKit Inc. For licensing inqu
   <Card title="Installation" icon="download" href="/introduction/installation">
     Get Standard Agents up and running in minutes
   </Card>
-  <Card title="Quick Start" icon="rocket" href="/introduction/quick-start">
-    Build your first AI agent
-  </Card>
   <Card title="Architecture" icon="sitemap" href="/introduction/architecture">
-    Understand how Standard Agents works
+    Understand how Standard Agents work
   </Card>
   <Card title="API Reference" icon="code" href="/api-reference/introduction">
     Explore the complete API
