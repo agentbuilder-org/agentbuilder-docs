@@ -123,6 +123,32 @@ export default {
 export { DurableThread, DurableAgentBuilder }
 ```
 
+## Step 6: Types
+
+Types for your agents are automatically generated and placed in the .agents directory. To add this typing to your project add the following to your `tsconfig.json` file:
+
+```json
+"compilerOptions": {
+		"types": [
+			"./worker-configuration.d.ts",
+      ".agents/types.d.ts",
+      ".agents/virtual-module.d.ts"
+		]
+	}
+```
+
+## Step 7: Start the development server
+
+You can now start the development server with the following command:
+
+```bash
+pnpm dev
+```
+
+<Info>
+ The development server will automatically generate the types for your agents, prompts, tools, and API routes, and spin up "miniflare" which is a local simulation of the Cloudflare worker environment.
+</Info>
+
 ## Next Steps
 
 <CardGroup cols={2}>
