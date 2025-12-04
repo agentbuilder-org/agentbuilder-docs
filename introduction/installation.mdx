@@ -125,7 +125,7 @@ export { DurableThread, DurableAgentBuilder }
 
 ## Step 6: Types
 
-Types for your agents are automatically generated and placed in the .agents directory. To add this typing to your project add the following to your `tsconfig.json` file:
+Types for your agents are automatically generated and placed in the `.agents` directory. Additionally, the cloudflare can generate types for it's own bindings too. To leverage both of these add this typing to your project add the following to your `tsconfig.json` file:
 
 ```json
 "compilerOptions": {
@@ -136,6 +136,14 @@ Types for your agents are automatically generated and placed in the .agents dire
 		]
 	}
 ```
+
+To generate the cloudflare types run the following command:
+
+```bash
+npx wrangler types
+```
+
+This will generate a `worker-configuration.d.ts` file in the root of your project. AgentBuilder types are generated with running the `dev` command.
 
 ## Step 7: Start the development server
 
