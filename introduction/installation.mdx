@@ -90,7 +90,7 @@ import { cloudflare } from '@cloudflare/vite-plugin'
 import { agentbuilder } from '@standardagents/builder'
 
 export default defineConfig({
-  plugins: [cloudflare(), agentbuilder()],
+  plugins: [cloudflare(), agentbuilder({ mountPoint: '/' })],
 })
 ```
 
@@ -174,8 +174,8 @@ import DurableThread from '../agents/Thread';
 import DurableAgentBuilder from '../agents/AgentBuilder';
 
 export default {
-  fetch(request, env) {
-    const res = router(request, env)
+  async fetch(request, env) {
+    const res = await router(request, env)
     return res ?? new Response(null, { status: 404 })
   },
 } satisfies ExportedHandler<Env>
@@ -191,9 +191,10 @@ Add the following to your `tsconfig.json` to enable type checking:
 {
   "compilerOptions": {
     "types": [
+      "vite/client",
       "./worker-configuration.d.ts",
-      ".agents/types.d.ts",
-      ".agents/virtual-module.d.ts"
+      "./.agents/types.d.ts",
+      "./.agents/virtual-module.d.ts"
     ]
   },
   "include": ["worker", "agents"]
