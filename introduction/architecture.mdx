@@ -1,11 +1,11 @@
 ---
-title: 'Architecture'
-description: 'Understanding how Standard Agents works under the hood'
+title: "Architecture"
+description: "Understanding how AgentBuilder works under the hood"
 ---
 
 # Makeup of a Standard Agent
 
-In order to create a Standard Agent, you define the following:
+In order to create a Standard Agent with AgentBuilder, you define the following:
 
 - **Models**: defines an LLM provider (currently supports OpenRouter and OpenAI) and model and fallbacks.
 - **Tools**: a typescript function that can be called by an agent. This is where most business integration logic lives.
@@ -45,7 +45,6 @@ graph TD
 
 Structurally an agent has a single prompt, a prompt can have many tools (which can be TypeScript functions, prompts, or agents) and a model, and a model can have multiple fallback models.
 
-
 ## Threads
 
 To actually run an agent, you create a new thread specifying which agent you want to use. In other words you can think of a thread as an instance of an agent.
@@ -74,6 +73,7 @@ If successful the response will be a JSON object containing the threadId:
 ```
 
 A thread's `id` is a cryptographically unique identifier for a given conversation. Keeping track of this id in your client code is important as it allows you to communicate directly with the thread's DurableObject instance.
+
 <Warning>
   Depending on your use case this id may need to be treated as an authentication token. Anyone with the `threadId` has full access to the thread's data.
 </Warning>

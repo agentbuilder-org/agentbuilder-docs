@@ -1,11 +1,11 @@
 ---
-title: 'Utilities'
-description: 'Runtime utility functions for working with FlowState'
+title: "Utilities"
+description: "Runtime utility functions for working with FlowState"
 ---
 
 ## Overview
 
-Standard Agents provides utility functions to manipulate the execution context from within tools and hooks. All utilities are imported from `@standardagents/builder`:
+AgentBuilder provides utility functions to manipulate the execution context from within tools and hooks. All utilities are imported from `@standardagents/builder`:
 
 ```typescript
 import {
@@ -31,6 +31,7 @@ queueTool(
 ```
 
 **Parameters:**
+
 - `flow`: The current FlowState context
 - `toolName`: The name of the tool to call
 - `args`: Optional arguments to pass to the tool
@@ -126,20 +127,20 @@ interface InjectMessageOptions {
     ```typescript
     import { defineTool, injectMessage } from "@standardagents/builder";
     import { z } from "zod";
-
+    
     export default defineTool(
       "Load user context",
       z.object({ userId: z.string() }),
       async (flow, args) => {
         const user = await fetchUser(args.userId);
-
+    
         await injectMessage(flow, {
           role: "system",
           content: `User context loaded: ${user.name} (${user.email})
             - Account tier: ${user.tier}
             - Preferences: ${JSON.stringify(user.preferences)}`,
         });
-
+    
         return {
           status: "success",
           result: "User context injected",
@@ -152,7 +153,7 @@ interface InjectMessageOptions {
     ```typescript
     import { defineTool, injectMessage } from "@standardagents/builder";
     import { z } from "zod";
-
+    
     export default defineTool(
       "Add internal note",
       z.object({ note: z.string() }),
@@ -162,7 +163,7 @@ interface InjectMessageOptions {
           content: args.note,
           silent: true,  // Hidden from LLM, visible in UI only
         });
-
+    
         return {
           status: "success",
           result: "Internal note added",
@@ -189,6 +190,7 @@ async getMessages(
 ```
 
 **Parameters:**
+
 - `flow`: The current FlowState context
 - `limit`: Maximum number of messages (default: 100)
 - `offset`: Number of messages to skip (default: 0)
@@ -263,6 +265,7 @@ emitThreadEvent(
 ```
 
 **Parameters:**
+
 - `flow`: The current FlowState context
 - `type`: The event type name
 - `data`: The event payload data
@@ -285,17 +288,17 @@ emitThreadEvent(
     ```typescript
     import { defineTool, emitThreadEvent } from "@standardagents/builder";
     import { z } from "zod";
-
+    
     export default defineTool(
       "Process large dataset",
       z.object({ datasetId: z.string() }),
       async (flow, args) => {
         const dataset = await loadDataset(args.datasetId);
         const total = dataset.length;
-
+    
         for (let i = 0; i < total; i++) {
           await processItem(dataset[i]);
-
+    
           // Emit progress event
           emitThreadEvent(flow, "progress", {
             current: i + 1,
@@ -304,7 +307,7 @@ emitThreadEvent(
             message: `Processing item ${i + 1} of ${total}`,
           });
         }
-
+    
         return {
           status: "success",
           result: `Processed ${total} items`,
@@ -317,7 +320,7 @@ emitThreadEvent(
     ```typescript
     import { defineTool, emitThreadEvent } from "@standardagents/builder";
     import { z } from "zod";
-
+    
     export default defineTool(
       "Upload file",
       z.object({ fileUrl: z.string() }),
@@ -326,21 +329,21 @@ emitThreadEvent(
           status: "started",
           message: "Starting download...",
         });
-
+    
         const file = await downloadFile(args.fileUrl);
-
+    
         emitThreadEvent(flow, "upload-status", {
           status: "processing",
           message: "Processing file...",
         });
-
+    
         const result = await processFile(file);
-
+    
         emitThreadEvent(flow, "upload-status", {
           status: "complete",
           message: "Upload complete!",
         });
-
+    
         return {
           status: "success",
           result: "File processed",
@@ -414,6 +417,7 @@ forceTurn(flow: FlowState, side: "a" | "b"): void
 ```
 
 **Parameters:**
+
 - `flow`: The current FlowState context
 - `side`: The side to force next turn to (`"a"` or `"b"`)
 
@@ -525,7 +529,6 @@ export default defineTool(
     }
     ```
   </Accordion>
-
   <Accordion title="Throttle Event Emissions">
     Avoid excessive event emissions that could overwhelm WebSocket clients:
 
@@ -539,14 +542,13 @@ export default defineTool(
         });
       }
     }
-
+    
     // Avoid: Emitting inside tight loop
     for (let i = 0; i < 10000; i++) {
       emitThreadEvent(flow, "progress", { value: i });
     }
     ```
   </Accordion>
-
   <Accordion title="Message Pagination">
     When retrieving large message histories, use pagination:
 
@@ -554,7 +556,7 @@ export default defineTool(
     const pageSize = 50;
     let offset = 0;
     let hasMore = true;
-
+    
     while (hasMore) {
       const messages = await getMessages(flow, pageSize, offset);
       await processMessages(messages);
@@ -563,13 +565,12 @@ export default defineTool(
     }
     ```
   </Accordion>
-
   <Accordion title="Tool Queue Management">
     Be mindful of tool queue depth to avoid excessive chaining:
 
     ```typescript
     const currentQueueDepth = flow.sequence.queue.length;
-
+    
     if (currentQueueDepth < 10) {
       queueTool(flow, "additional_tool", {});
     } else {
@@ -588,11 +589,9 @@ export default defineTool(
   <Accordion title="Events not received by frontend">
     **Solution:** Ensure you're using `ThreadProvider` with `live={true}` and that `onThreadEvent` is called with the correct event type name.
   </Accordion>
-
   <Accordion title="Tool not executing after queueTool">
     **Solution:** Tools are queued for sequential execution. Ensure the current tool completes successfully and doesn't stop execution.
   </Accordion>
-
   <Accordion title="getMessages returns empty array">
     **Solution:** Check that messages exist in the thread storage and that limit/offset parameters are correct.
   </Accordion>

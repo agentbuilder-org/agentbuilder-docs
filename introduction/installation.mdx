@@ -1,11 +1,11 @@
 ---
-title: 'Installation'
-description: 'Get Standard Agents up and running in your project'
+title: "Installation"
+description: "Get AgentBuilder up and running in your project"
 ---
 
 # Installation Guide
 
-Standard Agents is a Vite plugin that runs as a standalone application or mounts at a subpath of an existing Vite application. It can run locally for development and must be deployed to Cloudflare Workers for production.
+AgentBuilder is a Vite plugin that runs as a standalone application or mounts at a subpath of an existing Vite application. It can run locally for development and must be deployed to Cloudflare Workers for production.
 
 ## Quick Start (Recommended)
 
@@ -17,13 +17,16 @@ The easiest way to get started is using our CLI to create a new project:
 npx @standardagents/cli init my-agent-project
 ```
 
+
 ```bash pnpm
 pnpm dlx @standardagents/cli init my-agent-project
 ```
 
+
 ```bash yarn
 yarn dlx @standardagents/cli init my-agent-project
 ```
+
 
 ```bash bun
 bunx @standardagents/cli init my-agent-project
@@ -32,6 +35,7 @@ bunx @standardagents/cli init my-agent-project
 </CodeGroup>
 
 This command will:
+
 1. Create a new Vite project using `create vite`
 2. Install the required dependencies (`@cloudflare/vite-plugin`, `@standardagents/builder`, `wrangler`)
 3. Configure your `vite.config.ts` with the necessary plugins
@@ -48,20 +52,21 @@ npm run dev
 
 ## Adding to an Existing Project
 
-If you already have a Vite project and want to add Standard Agents:
+If you already have a Vite project and want to add AgentBuilder:
 
 ```bash
 npx @standardagents/cli scaffold
 ```
 
 The `scaffold` command intelligently modifies your existing project:
+
 - Adds `cloudflare()` and `agentbuilder()` plugins to your `vite.config.ts`
 - Creates or updates `wrangler.jsonc` with required bindings
 - Sets up the worker entry point with the Standard Agents router
 - Creates the `agents/` directory structure
 
 <Info>
-Use `--force` flag to overwrite existing configuration if needed.
+  Use `--force` flag to overwrite existing configuration if needed.
 </Info>
 
 ---
@@ -77,7 +82,7 @@ npm install -D vite @cloudflare/vite-plugin @standardagents/builder wrangler
 ```
 
 <Info>
-AgentBuilder's UI is pre-compiled, so there is no need to use a front end framework. However if you plan to use the Vite application to host more than just AgentBuilder, you can also install those frameworks.
+  AgentBuilder's UI is pre-compiled, so there is no need to use a front end framework. However if you plan to use the Vite application to host more than just AgentBuilder, you can also install those frameworks.
 </Info>
 
 ### Step 2: Configure the Vite Plugins
@@ -216,7 +221,7 @@ npm run dev
 ```
 
 <Info>
-The development server will automatically generate types for your agents, prompts, tools, and API routes, and spin up "miniflare" which is a local simulation of the Cloudflare Worker environment.
+  The development server will automatically generate types for your agents, prompts, tools, and API routes, and spin up "miniflare" which is a local simulation of the Cloudflare Worker environment.
 </Info>
 
 ---
@@ -247,7 +252,7 @@ your-project/
 
 <CardGroup cols={2}>
   <Card title="Architecture" icon="sitemap" href="/introduction/architecture">
-    Learn how Standard Agents works
+    Learn how AgentBuilder works
   </Card>
   <Card title="API Reference" icon="code" href="/api-reference/introduction">
     Explore the complete API

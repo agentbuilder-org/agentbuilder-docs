@@ -1,11 +1,11 @@
 ---
-title: 'Models'
-description: 'Configure LLM models with fallbacks and pricing tracking'
+title: "Models"
+description: "Configure LLM models with fallbacks and pricing tracking"
 ---
 
 ## What are Models?
 
-Models in Standard Agents define the LLM configurations that your agents and prompts use for AI responses. Each model configuration specifies which provider to use, the specific model ID, fallback models for resilience, and pricing for cost tracking.
+The models in Standard Agents produced by AgentBuilder define the LLM configurations that your agents and prompts use for AI responses. Each model configuration specifies which provider to use, the specific model ID, fallback models for resilience, and pricing for cost tracking.
 
 ## Quick Example
 
@@ -40,11 +40,13 @@ export default definePrompt({
 </Tip>
 
 This approach provides several benefits:
+
 - **Swap models easily** - Change the underlying model without updating prompts
 - **Clear intent** - Team members understand what each model is for
 - **Environment flexibility** - Use different models in dev vs production
 
 **Good model names:**
+
 - `heavy-thinking` - Complex reasoning tasks
 - `fast-response` - Quick, simple responses
 - `code-generation` - Code-focused tasks
@@ -53,13 +55,14 @@ This approach provides several benefits:
 - `creative-writing` - Creative content generation
 
 **Avoid:**
+
 - `gpt-4o` - Ties the name to a specific model
 - `claude-sonnet` - Same issue, hard to swap later
 - `model-1` - No indication of purpose
 
 ## Model Providers
 
-Standard Agents supports two model providers: **OpenAI** (direct) and **OpenRouter** (access to multiple providers).
+AgentBuilder supports two model providers for the Standard Agents it produces: **OpenAI** (direct) and **OpenRouter** (access to multiple providers).
 
 ### OpenAI
 
@@ -95,6 +98,7 @@ defineModel({
 **Model ID format:** `provider/model-name`
 
 **Example models:**
+
 - `openai/gpt-4o`
 - `anthropic/claude-sonnet-4`
 - `google/gemini-2.0-flash-exp`
@@ -168,11 +172,11 @@ defineModel({
 
 ### Current Pricing Examples
 
-| Model | Input Price | Output Price |
-|-------|-------------|--------------|
-| GPT-4o | $2.50 | $10.00 |
-| GPT-4o-mini | $0.15 | $0.60 |
-| o1-mini | $1.10 | $4.40 |
+| Model       | Input Price | Output Price |
+| ----------- | ----------- | ------------ |
+| GPT-4o      | \$2.50      | \$10.00      |
+| GPT-4o-mini | \$0.15      | \$0.60       |
+| o1-mini     | \$1.10      | \$4.40       |
 
 <Note>
   Prices shown may change. Check provider websites for current pricing. OpenRouter models fetch pricing automatically.
@@ -180,7 +184,7 @@ defineModel({
 
 ## Type Safety
 
-After defining models, Standard Agents generates the `StandardAgents.Models` type:
+After defining models, AgentBuilder generates the `StandardAgents.Models` type:
 
 ```typescript
 // Auto-generated
@@ -274,6 +278,7 @@ agents/
 ```
 
 **Requirements:**
+
 - Use snake_case for file names: `heavy_thinking.ts`, `fast_response.ts`
 - One model per file
 - Default export required

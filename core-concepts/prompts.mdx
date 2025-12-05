@@ -1,11 +1,11 @@
 ---
-title: 'Prompts'
-description: 'Configure AI instructions and behavior for your agents'
+title: "Prompts"
+description: "Configure AI instructions and behavior for your agents"
 ---
 
 ## What Are Prompts?
 
-Prompts in AgentBuilder define the instructions and configuration for how LLMs interact within your agents. Each prompt specifies:
+Prompts in AgentBuilder define the instructions and configuration for how LLMs interact within your Standard Agents. Each prompt specifies:
 
 - **System Instructions**: The core prompt sent to the LLM
 - **Model Configuration**: Which model to use
@@ -14,7 +14,7 @@ Prompts in AgentBuilder define the instructions and configuration for how LLMs i
 - **Context Options**: What history to include
 
 <Note>
-Prompts are file-based and auto-discovered. Create a TypeScript file in `agents/prompts/` and export your prompt definition—no manual registration needed!
+  Prompts are file-based and auto-discovered. Create a TypeScript file in `agents/prompts/` and export your prompt definition—no manual registration needed!
 </Note>
 
 ## Quick Start
@@ -35,7 +35,7 @@ Always be polite and try to resolve issues quickly.\`,
 ```
 
 <Check>
-Your prompt is now available! Reference it in any agent via `sideA: prompt: 'customer_support'`.
+  Your prompt is now available! Reference it in any agent via `sideA: prompt: 'customer_support'`.
 </Check>
 
 ## Core Configuration
@@ -50,25 +50,24 @@ Your prompt is now available! Reference it in any agent via `sideA: prompt: 'cus
     name: 'customer_support'  // snake_case recommended
     ```
   </Accordion>
-
   <Accordion title="prompt" icon="file-lines">
     The system instructions sent to the LLM.
 
     ```typescript
     prompt: \`You are a helpful assistant.
     
-Your responsibilities:
-- Answer questions accurately
-- Be professional and friendly
-- Use tools when needed\`
+    Your responsibilities:
+    - Answer questions accurately
+    - Be professional and friendly
+    - Use tools when needed\`
     ```
 
     **Supports template variables:**
+
     ```typescript
     prompt: \`Hello {{userName}}, today is {{currentDate}}.\`
     ```
   </Accordion>
-
   <Accordion title="model" icon="microchip">
     Which model configuration to use.
 
@@ -76,7 +75,6 @@ Your responsibilities:
     model: 'gpt-4o'  // Must be defined in agents/models/
     ```
   </Accordion>
-
   <Accordion title="toolDescription" icon="info">
     Description for when prompt is used as a tool. Always required.
 
@@ -99,11 +97,11 @@ Control what conversation history the LLM sees:
     ```
 
     **Use when:**
+
     - Multi-turn conversations
     - Context is important
     - Follow-up questions
   </Card>
-
   <Card title="includePastTools" icon="wrench">
     Include previous tool results
 
@@ -112,6 +110,7 @@ Control what conversation history the LLM sees:
     ```
 
     **Use when:**
+
     - Building on previous findings
     - Iterative analysis
     - Multi-step workflows
@@ -140,7 +139,7 @@ definePrompt({
 ```
 
 <Info>
-Tools can be function tools (from `agents/tools/`), prompt tools (other prompts with `exposeAsTool: true`), or agent tools (agents with `exposeAsTool: true`).
+  Tools can be function tools (from `agents/tools/`), prompt tools (other prompts with `exposeAsTool: true`), or agent tools (agents with `exposeAsTool: true`).
 </Info>
 
 ## Input Validation
@@ -193,7 +192,7 @@ export default definePrompt({
 ```
 
 <Warning>
-When an LLM calls a prompt tool, a sub-prompt execution occurs with its own context. Messages are stored with `parent_id` linking back to the parent execution.
+  When an LLM calls a prompt tool, a sub-prompt execution occurs with its own context. Messages are stored with `parent_id` linking back to the parent execution.
 </Warning>
 
 ## Extended Thinking
@@ -216,13 +215,12 @@ definePrompt({
 
 <Tabs>
   <Tab title="Effort Levels">
-    | Level | Behavior | Use Case |
-    |-------|----------|----------|
-    | `'low'` | Minimal reasoning | Simple tasks |
-    | `'medium'` | Balanced | Most tasks |
-    | `'high'` | Maximum depth | Complex problems |
+    | Level      | Behavior          | Use Case         |
+    | ---------- | ----------------- | ---------------- |
+    | `'low'`    | Minimal reasoning | Simple tasks     |
+    | `'medium'` | Balanced          | Most tasks       |
+    | `'high'`   | Maximum depth     | Complex problems |
   </Tab>
-
   <Tab title="Options">
     - **maxTokens**: Limit reasoning token usage
     - **exclude**: Use reasoning internally but don't show
@@ -299,35 +297,35 @@ export default definePrompt({
 
     ```typescript
     prompt: \`You are a customer support agent.
-
-## Your Role
-- Answer product questions
-- Resolve issues
-- Create tickets for complex problems
-
-## Guidelines
-- Be professional and empathetic
-- Ask clarifying questions
-- Never share internal information
-
-## Available Tools
-- search_knowledge_base: Find product info
-- create_ticket: Create support tickets\`
+    
+    ## Your Role
+    - Answer product questions
+    - Resolve issues
+    - Create tickets for complex problems
+    
+    ## Guidelines
+    - Be professional and empathetic
+    - Ask clarifying questions
+    - Never share internal information
+    
+    ## Available Tools
+    - search_knowledge_base: Find product info
+    - create_ticket: Create support tickets\`
     ```
   </Accordion>
-
   <Accordion title="Use Descriptive Tool Descriptions" icon="info">
     ✅ **Good:**
+
     ```typescript
     toolDescription: 'Search the knowledge base for product information, FAQs, and troubleshooting guides. Returns relevant articles.'
     ```
 
     ❌ **Avoid:**
+
     ```typescript
     toolDescription: 'Search stuff'
     ```
   </Accordion>
-
   <Accordion title="Validate Inputs with Zod" icon="shield">
     ```typescript
     requiredSchema: z.object({
@@ -337,12 +335,11 @@ export default definePrompt({
     }).strict()
     ```
   </Accordion>
-
   <Accordion title="Enable Context When Needed" icon="clock">
     ```typescript
     // For conversations
     includeChat: true
-
+    
     // For single-shot tasks
     includeChat: false
     ```
@@ -355,15 +352,12 @@ export default definePrompt({
   <Card title="API Reference" icon="code" href="/api-reference/prompts">
     View complete configuration options
   </Card>
-
   <Card title="Models" icon="microchip" href="/core-concepts/models">
     Learn about model configuration
   </Card>
-
   <Card title="Tools" icon="wrench" href="/core-concepts/tools">
     Create tools for prompts to use
   </Card>
-
   <Card title="Agents" icon="robot" href="/core-concepts/agents">
     Configure agents that use prompts
   </Card>

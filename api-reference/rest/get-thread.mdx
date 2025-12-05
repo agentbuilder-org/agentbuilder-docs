@@ -1,6 +1,6 @@
 ---
-title: 'Get Thread'
-api: 'GET /api/threads/{threadId}'
+title: "Get Thread"
+api: "GET /api/threads/{threadId}"
 ---
 
 Retrieves thread metadata and current state.
@@ -26,9 +26,11 @@ Retrieves thread metadata and current state.
 </ResponseField>
 
 <RequestExample>
+
 ```bash cURL
 curl https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000
 ```
+
 
 ```typescript JavaScript
 const response = await fetch(
@@ -36,9 +38,11 @@ const response = await fetch(
 );
 const thread = await response.json();
 ```
+
 </RequestExample>
 
 <ResponseExample>
+
 ```json 200
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -50,9 +54,11 @@ const thread = await response.json();
 }
 ```
 
+
 ```json 404
 {
   "error": "Thread not found"
 }
 ```
+
 </ResponseExample>
