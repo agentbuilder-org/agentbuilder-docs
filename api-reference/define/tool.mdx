@@ -1,0 +1,341 @@
+---
+title: 'defineTool'
+description: 'Define custom tools that agents can call'
+---
+
+## Overview
+
+`defineTool` creates a function tool that agents can call during execution.
+
+```typescript
+import { defineTool } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default defineTool(
+  'Search the knowledge base for relevant articles',
+  z.object({
+    query: z.string().describe('Search query'),
+  }),
+  async (flow, args) => {
+    const results = await searchKnowledgeBase(args.query);
+    return {
+      status: 'success',
+      result: results,
+    };
+  }
+);
+```
+
+## Type Definition
+
+```typescript
+function defineTool<T extends ZodSchema>(
+  description: string,
+  schema: T,
+  handler: ToolHandler<T>
+): Tool<T>;
+
+type ToolHandler<T extends ZodSchema> = (
+  flow: FlowState,
+  args: z.infer<T>
+) => Promise<ToolResult>;
+
+interface ToolResult {
+  status: 'success' | 'error';
+  result?: string;
+  error?: string;
+}
+
+interface Tool<T extends ZodSchema> {
+  description: string;
+  schema: T;
+  handler: ToolHandler<T>;
+}
+```
+
+## Parameters
+
+<ParamField body="description" type="string" required>
+  Human-readable description of what the tool does. This is sent to the LLM to help it decide when to use the tool.
+</ParamField>
+
+<ParamField body="schema" type="ZodSchema" required>
+  Zod schema defining the tool's parameters. Use `.describe()` on each field to help the LLM understand what to pass.
+</ParamField>
+
+<ParamField body="handler" type="ToolHandler" required>
+  Async function that executes when the tool is called. Receives `FlowState` and validated arguments.
+</ParamField>
+
+## Handler Parameters
+
+### FlowState
+
+The first parameter is the current execution context:
+
+```typescript
+interface FlowState {
+  threadId: string;
+  flowId: string;
+  agentConfig: Agent;
+  currentSide: 'a' | 'b';
+  turnCount: number;
+  stopped: boolean;
+  messageHistory: Message[];
+  storage: DurableObjectStorage;
+  env: Env;
+  context: Record<string, unknown>;
+}
+```
+
+See [FlowState](/core-concepts/flowstate) for full documentation.
+
+### Args
+
+The second parameter contains the validated arguments matching your Zod schema:
+
+```typescript
+// If schema is:
+z.object({
+  query: z.string(),
+  limit: z.number().optional(),
+})
+
+// Then args is typed as:
+{
+  query: string;
+  limit?: number;
+}
+```
+
+## Return Value
+
+Tools must return a `ToolResult` object:
+
+<ResponseField name="status" type="'success' | 'error'" required>
+  Whether the tool executed successfully
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  The result to return to the LLM (required for success)
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message (required for error status)
+</ResponseField>
+
+## Examples
+
+### Basic Tool
+
+```typescript
+import { defineTool } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default defineTool(
+  'Get the current weather for a location',
+  z.object({
+    location: z.string().describe('City name or coordinates'),
+    units: z.enum(['celsius', 'fahrenheit']).default('celsius'),
+  }),
+  async (flow, args) => {
+    const weather = await fetchWeather(args.location, args.units);
+    return {
+      status: 'success',
+      result: JSON.stringify(weather),
+    };
+  }
+);
+```
+
+### Using FlowState
+
+```typescript
+export default defineTool(
+  'Look up customer information',
+  z.object({
+    customerId: z.string().describe('Customer ID'),
+  }),
+  async (flow, args) => {
+    // Access environment bindings
+    const db = flow.env.DB;
+
+    // Access custom context
+    const userId = flow.context.userId;
+
+    // Access storage
+    const cached = await flow.storage.get(`customer:${args.customerId}`);
+    if (cached) {
+      return { status: 'success', result: cached };
+    }
+
+    const customer = await db.prepare(
+      'SELECT * FROM customers WHERE id = ?'
+    ).bind(args.customerId).first();
+
+    return {
+      status: 'success',
+      result: JSON.stringify(customer),
+    };
+  }
+);
+```
+
+### Error Handling
+
+```typescript
+export default defineTool(
+  'Process payment',
+  z.object({
+    amount: z.number().positive(),
+    currency: z.string().length(3),
+  }),
+  async (flow, args) => {
+    try {
+      const result = await processPayment(args.amount, args.currency);
+      return {
+        status: 'success',
+        result: `Payment processed: ${result.transactionId}`,
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        error: `Payment failed: ${error.message}`,
+      };
+    }
+  }
+);
+```
+
+### Using Utilities
+
+```typescript
+import { defineTool, queueTool, emitThreadEvent } from '@standardagents/builder';
+import { z } from 'zod';
+
+export default defineTool(
+  'Start a multi-step workflow',
+  z.object({
+    workflowId: z.string(),
+  }),
+  async (flow, args) => {
+    // Queue another tool to run next
+    queueTool(flow, 'execute_step', {
+      workflowId: args.workflowId,
+      step: 1
+    });
+
+    // Emit event to frontend
+    await emitThreadEvent(flow, 'workflow_started', {
+      workflowId: args.workflowId,
+    });
+
+    return {
+      status: 'success',
+      result: 'Workflow initiated',
+    };
+  }
+);
+```
+
+### Complex Schema
+
+```typescript
+export default defineTool(
+  'Create a support ticket',
+  z.object({
+    title: z.string().min(5).max(200).describe('Ticket title'),
+    description: z.string().describe('Detailed description'),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+    category: z.string().describe('Ticket category'),
+    tags: z.array(z.string()).optional().describe('Optional tags'),
+    assignee: z.string().optional().describe('User ID to assign to'),
+  }),
+  async (flow, args) => {
+    const ticket = await createTicket(args);
+    return {
+      status: 'success',
+      result: `Created ticket #${ticket.id}: ${ticket.title}`,
+    };
+  }
+);
+```
+
+## File Location
+
+Tools are auto-discovered from `agents/tools/`:
+
+```
+agents/
+└── tools/
+    ├── search_knowledge_base.ts
+    ├── lookup_customer.ts
+    └── create_ticket.ts
+```
+
+**Requirements:**
+- Use snake_case for file names
+- Tool name is derived from file name
+- One tool per file
+- Default export required
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Write Clear Descriptions">
+    The description helps the LLM decide when to use the tool:
+
+    **Good:**
+    ```typescript
+    'Search the knowledge base for product documentation, FAQs, and troubleshooting guides. Returns relevant articles ranked by relevance.'
+    ```
+
+    **Avoid:**
+    ```typescript
+    'Search stuff'
+    ```
+  </Accordion>
+
+  <Accordion title="Describe Schema Fields">
+    Use `.describe()` on every field:
+
+    ```typescript
+    z.object({
+      query: z.string().describe('Natural language search query'),
+      limit: z.number().min(1).max(20).default(5).describe('Max results'),
+      category: z.string().optional().describe('Filter by category name'),
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Return Structured Results">
+    Return JSON strings for complex data:
+
+    ```typescript
+    return {
+      status: 'success',
+      result: JSON.stringify({
+        articles: results,
+        totalCount: count,
+        hasMore: offset + limit < count,
+      }),
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully">
+    Always catch and return meaningful errors:
+
+    ```typescript
+    try {
+      // ... operation
+    } catch (error) {
+      console.error('[Tool] Operation failed:', error);
+      return {
+        status: 'error',
+        error: `Failed to complete operation: ${error.message}`,
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>

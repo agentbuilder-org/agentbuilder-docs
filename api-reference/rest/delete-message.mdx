@@ -1,0 +1,50 @@
+---
+title: 'Delete Message'
+api: 'DELETE /api/threads/{threadId}/messages/{messageId}'
+---
+
+Deletes a specific message from a thread.
+
+<Warning>
+  Deleting messages may affect conversation context for future agent responses.
+</Warning>
+
+<ParamField path="threadId" type="string" required>
+  The unique thread identifier (UUID)
+</ParamField>
+
+<ParamField path="messageId" type="string" required>
+  The unique message identifier
+</ParamField>
+
+<ResponseField name="success" type="boolean" required>
+  Whether the deletion was successful
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages/msg_001
+```
+
+```typescript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages/msg_001',
+  { method: 'DELETE' }
+);
+const result = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "success": true
+}
+```
+
+```json 404
+{
+  "error": "Message not found"
+}
+```
+</ResponseExample>

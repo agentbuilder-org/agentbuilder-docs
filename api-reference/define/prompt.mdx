@@ -1,0 +1,239 @@
+---
+title: 'definePrompt'
+description: 'Define AI prompts with tools and configuration'
+---
+
+## Overview
+
+`definePrompt` creates a prompt configuration that defines how the LLM behaves within an agent.
+
+```typescript
+import { definePrompt } from '@standardagents/builder';
+
+export default definePrompt({
+  name: 'customer_support',
+  toolDescription: 'Handle customer support inquiries',
+  prompt: `You are a helpful customer support agent.
+Always be polite and try to resolve issues quickly.`,
+  model: 'heavy-thinking',
+  includeChat: true,
+});
+```
+
+## Type Definition
+
+```typescript
+function definePrompt(config: PromptConfig): PromptConfig;
+
+interface PromptConfig {
+  name: string;
+  toolDescription: string;
+  prompt: string;
+  model: StandardAgents.Models;
+  exposeAsTool?: boolean;
+  includeChat?: boolean;
+  includePastTools?: boolean;
+  tools?: (string | ToolReference)[];
+  requiredSchema?: ZodSchema;
+  reasoning?: ReasoningConfig;
+}
+
+interface ToolReference {
+  name: string;
+  includeTextResponse?: boolean;
+  includeToolCalls?: boolean;
+}
+
+interface ReasoningConfig {
+  effort: 'low' | 'medium' | 'high';
+  maxTokens?: number;
+  exclude?: boolean;
+  include?: boolean;
+}
+```
+
+## Parameters
+
+<ParamField body="name" type="string" required>
+  Unique identifier for this prompt. Used to reference it in agents and as a tool name.
+</ParamField>
+
+<ParamField body="toolDescription" type="string" required>
+  Description shown when this prompt is available as a tool. Always required.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  The system instructions sent to the LLM. Supports template variables with `{{variableName}}` syntax.
+
+  ```typescript
+  prompt: `Hello {{userName}}, today is {{currentDate}}.`
+  ```
+</ParamField>
+
+<ParamField body="model" type="StandardAgents.Models" required>
+  Which model configuration to use. Must be defined in `agents/models/`.
+</ParamField>
+
+<ParamField body="exposeAsTool" type="boolean" default="false">
+  When `true`, this prompt can be called as a tool by other prompts.
+</ParamField>
+
+<ParamField body="includeChat" type="boolean" default="false">
+  Include full conversation history in context. Use for multi-turn conversations.
+</ParamField>
+
+<ParamField body="includePastTools" type="boolean" default="false">
+  Include previous tool call results in context. Use for iterative analysis tasks.
+</ParamField>
+
+<ParamField body="tools" type="(string | ToolReference)[]">
+  Array of tools available to this prompt. Can be:
+  - Function tool names (from `agents/tools/`)
+  - Prompt names (with `exposeAsTool: true`)
+  - Agent names (with `exposeAsTool: true`)
+  - Tool reference objects with options
+</ParamField>
+
+<ParamField body="requiredSchema" type="ZodSchema">
+  Zod schema for validating inputs when prompt is called as a tool.
+</ParamField>
+
+<ParamField body="reasoning" type="ReasoningConfig">
+  Extended thinking configuration for models that support it.
+</ParamField>
+
+### ReasoningConfig
+
+<ParamField body="reasoning.effort" type="'low' | 'medium' | 'high'" required>
+  Reasoning depth level.
+</ParamField>
+
+<ParamField body="reasoning.maxTokens" type="number">
+  Maximum tokens for reasoning.
+</ParamField>
+
+<ParamField body="reasoning.exclude" type="boolean">
+  Use reasoning internally but don't include in response.
+</ParamField>
+
+<ParamField body="reasoning.include" type="boolean">
+  Add reasoning to message history for multi-turn context.
+</ParamField>
+
+## Return Value
+
+Returns the same `PromptConfig` object passed in, enabling the build system to register it.
+
+## Examples
+
+### Basic Conversational Prompt
+
+```typescript
+definePrompt({
+  name: 'assistant',
+  toolDescription: 'General assistant for conversations',
+  prompt: `You are a helpful assistant.
+Provide clear, accurate, and friendly responses.`,
+  model: 'heavy-thinking',
+  includeChat: true,
+});
+```
+
+### Prompt with Tools
+
+```typescript
+definePrompt({
+  name: 'customer_support',
+  toolDescription: 'Handle customer support inquiries',
+  prompt: `You are a customer support agent.
+
+Your responsibilities:
+- Answer questions about products
+- Help resolve issues
+- Create tickets when needed
+
+Always be professional and empathetic.`,
+  model: 'heavy-thinking',
+  includeChat: true,
+  tools: [
+    'search_knowledge_base',
+    'lookup_customer',
+    'create_ticket',
+  ],
+});
+```
+
+### Sub-Prompt with Validation
+
+```typescript
+import { z } from 'zod';
+
+definePrompt({
+  name: 'code_reviewer',
+  toolDescription: 'Review code for bugs and improvements',
+  exposeAsTool: true,
+  prompt: `You are an expert code reviewer.
+Analyze code for bugs, performance, and best practices.`,
+  model: 'heavy-thinking',
+  requiredSchema: z.object({
+    code: z.string().describe('Code to review'),
+    language: z.string().describe('Programming language'),
+  }),
+});
+```
+
+### With Extended Thinking
+
+```typescript
+definePrompt({
+  name: 'complex_analysis',
+  toolDescription: 'Analyze complex problems with deep reasoning',
+  prompt: 'Analyze this complex problem thoroughly...',
+  model: 'claude-sonnet',
+  reasoning: {
+    effort: 'high',
+    maxTokens: 10000,
+    exclude: false,
+  },
+});
+```
+
+### Tool Reference with Options
+
+```typescript
+definePrompt({
+  name: 'developer_assistant',
+  toolDescription: 'Assist with development tasks',
+  prompt: 'You are a developer assistant...',
+  model: 'heavy-thinking',
+  tools: [
+    'run_tests',
+    {
+      name: 'code_reviewer',
+      includeTextResponse: true,
+      includeToolCalls: false,
+    },
+  ],
+});
+```
+
+## File Location
+
+Prompts are auto-discovered from `agents/prompts/`:
+
+```
+agents/
+└── prompts/
+    ├── customer_support.ts
+    ├── code_reviewer.ts
+    └── assistant.ts
+```
+
+**Requirements:**
+- Use snake_case for file names
+- One prompt per file
+- Default export required
+
+## Generated Types
+
+After running the build, `StandardAgents.Prompts` type is generated for type-safe references.

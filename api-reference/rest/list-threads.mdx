@@ -1,0 +1,68 @@
+---
+title: 'List Threads'
+api: 'GET /api/threads'
+---
+
+Lists all threads, optionally filtered by user.
+
+<ParamField query="userId" type="string">
+  Filter threads by user identifier
+</ParamField>
+
+<ParamField query="limit" type="number" default="50">
+  Maximum number of threads to return (1-100)
+</ParamField>
+
+<ParamField query="offset" type="number" default="0">
+  Number of threads to skip for pagination
+</ParamField>
+
+<ResponseField name="threads" type="array" required>
+  Array of thread objects
+</ResponseField>
+
+<ResponseField name="total" type="number" required>
+  Total number of threads matching the filter
+</ResponseField>
+
+<ResponseField name="hasMore" type="boolean" required>
+  Whether more threads exist beyond the current page
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl "https://your-worker.workers.dev/api/threads?userId=user_abc123&limit=20"
+```
+
+```typescript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/threads?userId=user_abc123&limit=20'
+);
+const result = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "threads": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "agentName": "support_agent",
+      "created_at": 1699900000000,
+      "metadata": {
+        "title": "Support Conversation"
+      }
+    },
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "agentName": "support_agent",
+      "created_at": 1699800000000,
+      "metadata": {}
+    }
+  ],
+  "total": 2,
+  "hasMore": false
+}
+```
+</ResponseExample>

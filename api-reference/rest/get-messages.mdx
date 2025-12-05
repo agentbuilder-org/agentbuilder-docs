@@ -1,0 +1,106 @@
+---
+title: 'Get Messages'
+api: 'GET /api/threads/{threadId}/messages'
+---
+
+Retrieves all messages in a thread.
+
+<ParamField path="threadId" type="string" required>
+  The unique thread identifier (UUID)
+</ParamField>
+
+<ParamField query="limit" type="number" default="100">
+  Maximum number of messages to return
+</ParamField>
+
+<ParamField query="before" type="string">
+  Return messages before this message ID (for pagination)
+</ParamField>
+
+<ParamField query="after" type="string">
+  Return messages after this message ID (for pagination)
+</ParamField>
+
+<ResponseField name="messages" type="array" required>
+  Array of message objects
+</ResponseField>
+
+<ResponseField name="hasMore" type="boolean" required>
+  Whether more messages exist beyond the current page
+</ResponseField>
+
+### Message Object
+
+<ResponseField name="messages[].id" type="string" required>
+  Unique message identifier
+</ResponseField>
+
+<ResponseField name="messages[].role" type="string" required>
+  Message role: `"system"`, `"user"`, `"assistant"`, or `"tool"`
+</ResponseField>
+
+<ResponseField name="messages[].content" type="string | null" required>
+  Message content (null for tool calls without text)
+</ResponseField>
+
+<ResponseField name="messages[].name" type="string | null">
+  Display name (e.g., agent label for assistant messages)
+</ResponseField>
+
+<ResponseField name="messages[].tool_calls" type="string | null">
+  JSON string of tool calls made by assistant
+</ResponseField>
+
+<ResponseField name="messages[].tool_call_id" type="string | null">
+  ID linking tool result to its call (for tool role messages)
+</ResponseField>
+
+<ResponseField name="messages[].created_at" type="number" required>
+  Unix timestamp in milliseconds
+</ResponseField>
+
+<ResponseField name="messages[].status" type="string">
+  Message status: `"pending"`, `"completed"`, or `"failed"`
+</ResponseField>
+
+<ResponseField name="messages[].depth" type="number">
+  Nesting depth for sub-prompt messages (0 for top-level)
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl "https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages?limit=50"
+```
+
+```typescript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages?limit=50'
+);
+const result = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "messages": [
+    {
+      "id": "msg_001",
+      "role": "user",
+      "content": "Hello, I need help with my order",
+      "created_at": 1699900000000,
+      "status": "completed"
+    },
+    {
+      "id": "msg_002",
+      "role": "assistant",
+      "content": "I'd be happy to help you with your order. Could you provide your order number?",
+      "created_at": 1699900001000,
+      "status": "completed",
+      "name": "Support Agent"
+    }
+  ],
+  "hasMore": false
+}
+```
+</ResponseExample>

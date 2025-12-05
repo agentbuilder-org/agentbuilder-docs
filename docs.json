@@ -8,6 +8,11 @@
     "dark": "#9A3412"
   },
   "favicon": "/favicon.svg",
+  "api": {
+    "playground": {
+      "display": "simple"
+    }
+  },
   "navigation": {
     "tabs": [
       {
@@ -45,13 +50,37 @@
         "tab": "API Reference",
         "groups": [
           {
-            "group": "Core APIs",
+            "group": "Threads",
             "pages": [
-              "api-reference/agents",
-              "api-reference/prompts",
-              "api-reference/tools",
-              "api-reference/models",
-              "api-reference/hooks"
+              "api-reference/rest/create-thread",
+              "api-reference/rest/get-thread",
+              "api-reference/rest/update-thread",
+              "api-reference/rest/delete-thread",
+              "api-reference/rest/list-threads"
+            ]
+          },
+          {
+            "group": "Messages",
+            "pages": [
+              "api-reference/rest/send-message",
+              "api-reference/rest/get-messages",
+              "api-reference/rest/delete-message"
+            ]
+          },
+          {
+            "group": "Define Utilities",
+            "pages": [
+              "api-reference/define/model",
+              "api-reference/define/prompt",
+              "api-reference/define/agent",
+              "api-reference/define/tool",
+              "api-reference/define/hook"
+            ]
+          },
+          {
+            "group": "WebSocket",
+            "pages": [
+              "api-reference/websocket/stream"
             ]
           }
         ]

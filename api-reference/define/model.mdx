@@ -1,0 +1,186 @@
+---
+title: 'defineModel'
+description: 'Define LLM model configurations'
+---
+
+## Overview
+
+`defineModel` creates a model configuration that can be referenced by prompts and agents.
+
+```typescript
+import { defineModel } from '@standardagents/builder';
+
+export default defineModel({
+  name: 'heavy-thinking',
+  provider: 'openai',
+  model: 'gpt-4o',
+  inputPrice: 2.5,
+  outputPrice: 10,
+});
+```
+
+## Type Definition
+
+```typescript
+function defineModel(config: ModelConfig): ModelConfig;
+
+interface ModelConfig {
+  name: string;
+  provider: 'openai' | 'openrouter';
+  model: string;
+  inputPrice?: number;
+  outputPrice?: number;
+  cachedPrice?: number;
+  fallbacks?: string[];
+  includedProviders?: string[];
+}
+```
+
+## Parameters
+
+<ParamField body="name" type="string" required>
+  Unique identifier for this model configuration. Used to reference the model in prompts and agents.
+
+  **Best Practice:** Name models by use case, not by model ID:
+  - `heavy-thinking` - Complex reasoning tasks
+  - `fast-response` - Quick, simple responses
+  - `code-generation` - Code-focused tasks
+</ParamField>
+
+<ParamField body="provider" type="'openai' | 'openrouter'" required>
+  The model provider to use.
+
+  - `openai` - Direct OpenAI API access
+  - `openrouter` - Access to multiple providers via OpenRouter
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  The specific model identifier.
+
+  **OpenAI examples:**
+  - `gpt-4o`
+  - `gpt-4o-mini`
+  - `o1-mini`
+
+  **OpenRouter format:** `provider/model-name`
+  - `anthropic/claude-sonnet-4`
+  - `google/gemini-2.0-flash-exp`
+  - `meta-llama/llama-3.3-70b-instruct`
+</ParamField>
+
+<ParamField body="inputPrice" type="number">
+  Price per 1 million input tokens in USD. Required for OpenAI provider.
+
+  OpenRouter models fetch pricing automatically from the API.
+</ParamField>
+
+<ParamField body="outputPrice" type="number">
+  Price per 1 million output tokens in USD. Required for OpenAI provider.
+</ParamField>
+
+<ParamField body="cachedPrice" type="number">
+  Price per 1 million cached tokens in USD (if provider supports caching).
+</ParamField>
+
+<ParamField body="fallbacks" type="string[]">
+  Array of model names to try if the primary model fails. Must reference other models defined with `defineModel`.
+
+  Fallbacks are tried for:
+  - Network errors
+  - Rate limits (429)
+  - Server errors (5xx)
+  - Authentication errors (401)
+</ParamField>
+
+<ParamField body="includedProviders" type="string[]">
+  **OpenRouter only.** Only use specific providers for this model.
+
+  ```typescript
+  includedProviders: ['anthropic']  // Only route to Anthropic
+  ```
+</ParamField>
+
+## Return Value
+
+Returns the same `ModelConfig` object passed in, enabling the build system to register it.
+
+## Examples
+
+### OpenAI Model
+
+```typescript
+defineModel({
+  name: 'heavy-thinking',
+  provider: 'openai',
+  model: 'gpt-4o',
+  inputPrice: 2.5,
+  outputPrice: 10,
+});
+```
+
+### OpenRouter Model
+
+```typescript
+defineModel({
+  name: 'claude-sonnet',
+  provider: 'openrouter',
+  model: 'anthropic/claude-sonnet-4',
+  includedProviders: ['anthropic'],
+});
+```
+
+<Note>
+  OpenRouter models automatically fetch pricing from the OpenRouter API. You do not need to specify `inputPrice` or `outputPrice`.
+</Note>
+
+### With Fallbacks
+
+```typescript
+// Define fallback model first
+defineModel({
+  name: 'fallback-cheap',
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  inputPrice: 0.15,
+  outputPrice: 0.60,
+});
+
+// Primary model with fallback
+defineModel({
+  name: 'primary',
+  provider: 'openai',
+  model: 'gpt-4o',
+  fallbacks: ['fallback-cheap'],
+  inputPrice: 2.5,
+  outputPrice: 10,
+});
+```
+
+## File Location
+
+Models are auto-discovered from `agents/models/`:
+
+```
+agents/
+└── models/
+    ├── heavy_thinking.ts
+    ├── fast_response.ts
+    └── budget.ts
+```
+
+**Requirements:**
+- Use snake_case for file names
+- One model per file
+- Default export required
+
+## Generated Types
+
+After running the build, `StandardAgents.Models` type is generated:
+
+```typescript
+declare namespace StandardAgents {
+  type Models = 'heavy-thinking' | 'fast-response' | 'budget';
+}
+```
+
+This enables type-safe model references in prompts.

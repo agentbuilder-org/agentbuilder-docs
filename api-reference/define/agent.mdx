@@ -1,0 +1,263 @@
+---
+title: 'defineAgent'
+description: 'Define AI agents that power conversations'
+---
+
+## Overview
+
+`defineAgent` creates an agent configuration that defines the structure and behavior of AI-powered conversations.
+
+```typescript
+import { defineAgent } from '@standardagents/builder';
+
+export default defineAgent({
+  name: 'support_agent',
+  type: 'ai_human',
+  sideA: {
+    prompt: 'customer_support',
+    stopOnResponse: true,
+  },
+});
+```
+
+## Type Definition
+
+```typescript
+function defineAgent(config: AgentConfig): AgentConfig;
+
+interface AgentConfig {
+  name: string;
+  type: 'ai_human' | 'dual_ai';
+  title?: string;
+  exposeAsTool?: boolean;
+  toolDescription?: string;
+  tags?: string[];
+  maxSessionTurns?: number;
+  sideA: SideConfig;
+  sideB?: SideConfig;
+}
+
+interface SideConfig {
+  label?: string;
+  prompt: StandardAgents.Prompts;
+  stopOnResponse?: boolean;
+  stopTool?: string;
+  stopToolResponseProperty?: string;
+  endConversationTool?: string;
+  maxTurns?: number;
+}
+```
+
+## Parameters
+
+<ParamField body="name" type="string" required>
+  Unique identifier for this agent. Used in API routes and thread creation.
+</ParamField>
+
+<ParamField body="type" type="'ai_human' | 'dual_ai'" required>
+  Agent type:
+  - `ai_human` - AI assistant converses with a human user
+  - `dual_ai` - Two AI participants converse with each other
+</ParamField>
+
+<ParamField body="title" type="string">
+  Human-readable display title for the agent.
+</ParamField>
+
+<ParamField body="exposeAsTool" type="boolean" default="false">
+  When `true`, this agent can be called as a tool by other agents for handoffs.
+</ParamField>
+
+<ParamField body="toolDescription" type="string">
+  Description shown when agent is available as a tool. Required if `exposeAsTool` is true.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Array of tags for filtering and routing.
+</ParamField>
+
+<ParamField body="maxSessionTurns" type="number">
+  Maximum total turns for the entire conversation. Required for `dual_ai` agents.
+</ParamField>
+
+<ParamField body="sideA" type="SideConfig" required>
+  Configuration for the primary AI participant.
+</ParamField>
+
+<ParamField body="sideB" type="SideConfig">
+  Configuration for the secondary participant. Required for `dual_ai` agents.
+</ParamField>
+
+### SideConfig
+
+<ParamField body="sideA.label" type="string">
+  Display name for this side (shown in logs and UI).
+</ParamField>
+
+<ParamField body="sideA.prompt" type="StandardAgents.Prompts" required>
+  The prompt configuration to use. Must be defined in `agents/prompts/`.
+</ParamField>
+
+<ParamField body="sideA.stopOnResponse" type="boolean" default="false">
+  Stop the turn when AI returns text without calling tools.
+</ParamField>
+
+<ParamField body="sideA.stopTool" type="string">
+  Stop the turn when this specific tool is called.
+</ParamField>
+
+<ParamField body="sideA.stopToolResponseProperty" type="string">
+  Property from stop tool result to use as response.
+</ParamField>
+
+<ParamField body="sideA.endConversationTool" type="string">
+  End the entire conversation when this tool is called.
+</ParamField>
+
+<ParamField body="sideA.maxTurns" type="number">
+  Maximum turns allowed for this side.
+</ParamField>
+
+## Return Value
+
+Returns the same `AgentConfig` object passed in, enabling the build system to register it.
+
+## Examples
+
+### Simple AI-Human Agent
+
+```typescript
+defineAgent({
+  name: 'assistant',
+  type: 'ai_human',
+  sideA: {
+    label: 'Assistant',
+    prompt: 'helpful_assistant',
+    stopOnResponse: true,
+  },
+});
+```
+
+### Customer Support Agent
+
+```typescript
+defineAgent({
+  name: 'support_agent',
+  type: 'ai_human',
+  title: 'Customer Support',
+  tags: ['support', 'customer-facing'],
+  sideA: {
+    label: 'Support',
+    prompt: 'customer_support',
+    stopOnResponse: true,
+    endConversationTool: 'resolve_issue',
+    maxTurns: 25,
+  },
+});
+```
+
+### Workflow Agent
+
+```typescript
+defineAgent({
+  name: 'checkout_agent',
+  type: 'ai_human',
+  sideA: {
+    label: 'Checkout Assistant',
+    prompt: 'checkout_flow',
+    stopOnResponse: false,
+    stopTool: 'confirm_order',
+    stopToolResponseProperty: 'orderId',
+    endConversationTool: 'complete_checkout',
+    maxTurns: 30,
+  },
+});
+```
+
+### Dual AI Agent
+
+```typescript
+defineAgent({
+  name: 'debate_agent',
+  type: 'dual_ai',
+  maxSessionTurns: 20,
+  sideA: {
+    label: 'Pro',
+    prompt: 'debate_pro',
+    stopOnResponse: false,
+    maxTurns: 10,
+  },
+  sideB: {
+    label: 'Con',
+    prompt: 'debate_con',
+    stopOnResponse: false,
+    maxTurns: 10,
+  },
+});
+```
+
+### Agent as Tool (Handoff)
+
+```typescript
+// Specialist agent
+defineAgent({
+  name: 'billing_specialist',
+  exposeAsTool: true,
+  toolDescription: 'Hand off billing and payment issues to a specialist',
+  type: 'ai_human',
+  sideA: {
+    prompt: 'billing_expert',
+    stopOnResponse: true,
+  },
+});
+
+// Router agent that can hand off
+defineAgent({
+  name: 'support_router',
+  type: 'ai_human',
+  sideA: {
+    prompt: 'router_prompt', // Has 'billing_specialist' in tools array
+    stopOnResponse: true,
+  },
+});
+```
+
+## Stop Conditions
+
+Stop conditions control when turns and conversations end:
+
+| Condition | Description |
+|-----------|-------------|
+| `stopOnResponse: true` | Stop when AI returns text without tools |
+| `stopTool: 'name'` | Stop when specific tool is called |
+| `maxTurns: N` | Stop after N turns by this side |
+| `endConversationTool: 'name'` | End entire conversation when tool is called |
+
+### Retry Sequence with Fallbacks
+
+When a request fails:
+1. Primary model (attempt 1) → Failed? Retry...
+2. Primary model (attempt 2) → Failed? Try fallback...
+3. Fallback 1 (attempt 1) → Failed? Retry...
+4. Continue until success or all fallbacks exhausted
+
+## File Location
+
+Agents are auto-discovered from `agents/agents/`:
+
+```
+agents/
+└── agents/
+    ├── support_agent.ts
+    ├── checkout_agent.ts
+    └── debate_agent.ts
+```
+
+**Requirements:**
+- Use snake_case for file names
+- One agent per file
+- Default export required
+
+## Generated Types
+
+After running the build, `StandardAgents.Agents` type is generated for type-safe references.

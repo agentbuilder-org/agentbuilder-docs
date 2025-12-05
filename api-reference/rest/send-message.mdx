@@ -1,0 +1,79 @@
+---
+title: 'Send Message'
+api: 'POST /api/threads/{threadId}/messages'
+---
+
+Sends a message to a thread and triggers an agent response.
+
+<Note>
+  This endpoint queues the message and returns immediately. To receive the agent's response in real-time, use the [WebSocket stream](/api-reference/websocket/stream).
+</Note>
+
+<ParamField path="threadId" type="string" required>
+  The unique thread identifier (UUID)
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  Message role: `"user"`, `"system"`, or `"assistant"`
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  The message content
+</ParamField>
+
+<ParamField body="context" type="object">
+  Optional context data passed to the agent's FlowState. Available in tools and hooks via `flow.context`.
+</ParamField>
+
+<ParamField body="userId" type="string">
+  Optional user identifier for tracking
+</ParamField>
+
+<ResponseField name="success" type="boolean" required>
+  Whether the message was successfully queued
+</ResponseField>
+
+<ResponseField name="messageId" type="string" required>
+  The unique identifier for the created message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "user",
+    "content": "Hello, I need help with my order",
+    "context": {
+      "orderId": "ORD-12345"
+    },
+    "userId": "user_abc123"
+  }'
+```
+
+```typescript JavaScript
+const response = await fetch(
+  'https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000/messages',
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      role: 'user',
+      content: 'Hello, I need help with my order',
+      context: { orderId: 'ORD-12345' },
+      userId: 'user_abc123'
+    })
+  }
+);
+const result = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "success": true,
+  "messageId": "msg_550e8400-e29b-41d4-a716-446655440000"
+}
+```
+</ResponseExample>

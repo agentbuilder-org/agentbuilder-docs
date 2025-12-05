@@ -1,0 +1,318 @@
+---
+title: 'defineHook'
+description: 'Define lifecycle hooks for agent execution'
+---
+
+## Overview
+
+`defineHook` creates a hook that runs at specific points during agent execution.
+
+```typescript
+import { defineHook } from '@standardagents/builder';
+
+export default defineHook('after_create_message', async (state, message) => {
+  console.log('Message created:', message.id);
+});
+```
+
+## Type Definition
+
+```typescript
+function defineHook<T extends HookName>(
+  name: T,
+  handler: HookHandler<T>
+): Hook<T>;
+
+type HookName =
+  | 'filter_messages'
+  | 'prefilter_llm_history'
+  | 'before_create_message'
+  | 'before_update_message'
+  | 'after_create_message'
+  | 'after_update_message'
+  | 'after_tool_call_success'
+  | 'after_tool_call_failure';
+```
+
+## Parameters
+
+<ParamField body="name" type="HookName" required>
+  The hook type. Determines when the hook runs and what parameters it receives.
+</ParamField>
+
+<ParamField body="handler" type="HookHandler" required>
+  Async function that executes when the hook is triggered. Parameters vary by hook type.
+</ParamField>
+
+## Hook Types
+
+### Transformation Hooks
+
+These hooks receive data, can modify it, and return the modified version.
+
+#### filter_messages
+
+Runs before SQL rows are transformed into messages. Use to filter or modify raw message data.
+
+```typescript
+defineHook('filter_messages', async (state, rows) => {
+  // rows: MessageRow[]
+  return rows.filter(row => row.status === 'completed');
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="rows" type="MessageRow[]">
+  Raw message rows from the database
+</ParamField>
+
+**Returns:** `MessageRow[]` - Filtered/modified rows
+
+#### prefilter_llm_history
+
+Runs before messages are sent to the LLM. Use to modify context or add dynamic data.
+
+```typescript
+defineHook('prefilter_llm_history', async (state, messages) => {
+  // Add dynamic system message
+  return [
+    { role: 'system', content: `Current time: ${new Date().toISOString()}` },
+    ...messages,
+  ];
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="messages" type="Message[]">
+  Messages about to be sent to LLM
+</ParamField>
+
+**Returns:** `Message[]` - Modified messages
+
+#### before_create_message
+
+Runs before a message is inserted into the database. Use to add metadata or modify content.
+
+```typescript
+defineHook('before_create_message', async (state, message) => {
+  if (message.role === 'assistant') {
+    message.name = state.agentConfig.title;
+  }
+  return message;
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="message" type="Message">
+  Message about to be created
+</ParamField>
+
+**Returns:** `Message` - Modified message
+
+#### before_update_message
+
+Runs before a message is updated in the database.
+
+```typescript
+defineHook('before_update_message', async (state, messageId, updates) => {
+  return {
+    ...updates,
+    updated_at: Date.now(),
+  };
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="messageId" type="string">
+  ID of message being updated
+</ParamField>
+
+<ParamField body="updates" type="Partial<Message>">
+  Updates being applied
+</ParamField>
+
+**Returns:** `Partial<Message>` - Modified updates
+
+#### after_tool_call_success
+
+Runs after a tool executes successfully. Can modify the result or convert to a different message type.
+
+```typescript
+import { defineHook, injectMessage } from '@standardagents/builder';
+
+defineHook('after_tool_call_success', async (state, call, result) => {
+  if (call.function.name === 'get_user_input') {
+    // Convert tool result to user message
+    await injectMessage(state, {
+      role: 'user',
+      content: result.result || '',
+    });
+    return null; // Remove tool call from history
+  }
+  return result;
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="call" type="ToolCall">
+  The tool call that was executed
+</ParamField>
+
+<ParamField body="result" type="ToolResult">
+  Result from the tool
+</ParamField>
+
+**Returns:** `ToolResult | null` - Modified result or null to remove
+
+#### after_tool_call_failure
+
+Runs after a tool fails. Can modify the error or suppress the failure.
+
+```typescript
+defineHook('after_tool_call_failure', async (state, call, error) => {
+  console.error(`Tool ${call.function.name} failed:`, error);
+
+  // Return a modified error message
+  return {
+    status: 'error',
+    error: `The ${call.function.name} operation is temporarily unavailable.`,
+  };
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="call" type="ToolCall">
+  The tool call that failed
+</ParamField>
+
+<ParamField body="error" type="Error">
+  The error that occurred
+</ParamField>
+
+**Returns:** `ToolResult` - Modified error result
+
+### Event Hooks
+
+These hooks run after an event and don't return anything.
+
+#### after_create_message
+
+Runs after a message is inserted. Use for logging, analytics, or webhooks.
+
+```typescript
+defineHook('after_create_message', async (state, message) => {
+  await fetch('https://analytics.example.com/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      event: 'message_created',
+      thread_id: state.threadId,
+      message_id: message.id,
+      role: message.role,
+    }),
+  });
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="message" type="Message">
+  The created message
+</ParamField>
+
+**Returns:** `void`
+
+#### after_update_message
+
+Runs after a message is updated. Use to track status changes.
+
+```typescript
+defineHook('after_update_message', async (state, messageId, updates) => {
+  if (updates.status === 'completed') {
+    console.log(`Message ${messageId} completed`);
+  }
+});
+```
+
+<ParamField body="state" type="FlowState">
+  Current execution context
+</ParamField>
+
+<ParamField body="messageId" type="string">
+  ID of updated message
+</ParamField>
+
+<ParamField body="updates" type="Partial<Message>">
+  The updates that were applied
+</ParamField>
+
+**Returns:** `void`
+
+## Error Handling
+
+All hooks are wrapped in error handling:
+
+1. If a hook throws, the error is logged
+2. Execution continues with original data
+3. The framework doesn't crash
+
+```typescript
+// This hook throws, but execution continues
+defineHook('filter_messages', async (state, rows) => {
+  throw new Error('Something went wrong!');
+});
+
+// Framework behavior:
+// 1. Logs: [Hooks] ✗ Error running filter_messages hook: Something went wrong!
+// 2. Returns original rows (unmodified)
+// 3. Continues execution normally
+```
+
+## File Location
+
+Hooks are auto-discovered from `agents/hooks/`:
+
+```
+agents/
+└── hooks/
+    ├── filter_messages.ts
+    ├── after_create_message.ts
+    └── after_tool_call_success.ts
+```
+
+**Requirements:**
+- File name must match hook name
+- One hook per file
+- Default export required
+
+## Quick Reference
+
+| Hook | Type | When It Runs |
+|------|------|--------------|
+| `filter_messages` | Transform | Before SQL → Message conversion |
+| `prefilter_llm_history` | Transform | Before sending to LLM |
+| `before_create_message` | Transform | Before INSERT |
+| `before_update_message` | Transform | Before UPDATE |
+| `after_create_message` | Event | After INSERT |
+| `after_update_message` | Event | After UPDATE |
+| `after_tool_call_success` | Transform | After successful tool |
+| `after_tool_call_failure` | Transform | After failed tool |

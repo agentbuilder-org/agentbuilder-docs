@@ -73,17 +73,6 @@ function ChatInterface() {
 }
 ```
 
-## Authentication
-
-The package reads authentication tokens from `localStorage`:
-
-```tsx
-// Set the token before using the hooks
-localStorage.setItem("agentbuilder_auth_token", "your-token-here")
-```
-
-All API requests and WebSocket connections will automatically include this token in the `Authorization` header.
-
 ## Core Providers
 
 ### AgentBuilderProvider
