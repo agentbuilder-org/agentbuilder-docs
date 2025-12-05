@@ -29,18 +29,14 @@
               "core-concepts/prompts",
               "core-concepts/agents",
               "core-concepts/hooks",
-              "core-concepts/flowstate"
+              "core-concepts/flowstate",
+              "core-concepts/utilities"
             ]
           },
           {
-            "group": "Packages",
+            "group": "User Interfaces",
             "pages": [
-              "packages/builder/overview",
-              "packages/builder/durable-objects",
-              "packages/builder/virtual-modules",
-              "packages/builder/admin-ui",
-              "packages/cli/overview",
-              "packages/react/overview"
+              "user-interfaces/react"
             ]
           }
         ]

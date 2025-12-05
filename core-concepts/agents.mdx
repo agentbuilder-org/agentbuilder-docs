@@ -16,22 +16,12 @@ Agents in AgentBuilder define the structure and behavior of AI-powered conversat
 Agents are file-based and auto-discovered. Just create a TypeScript file in `agents/agents/` and export your agent definition—no manual registration needed!
 </Note>
 
-## Why Use Agents?
-
-Agents provide structure to AI conversations. They let you:
-
-- **Define conversation flows**: Control turn-taking between participants
-- **Enable tool usage**: Give AI access to custom capabilities
-- **Set boundaries**: Limit turns and define stop conditions
-- **Create handoffs**: Route between specialized agents
-- **Build workflows**: Chain multiple AI steps together
-
 ## Quick Start
 
 Create your first agent in `agents/agents/support_agent.ts`:
 
 ```typescript
-import { defineAgent } from '@agentbuilder/vite';
+import { defineAgent } from '@standardagents/builder';
 
 export default defineAgent({
   name: 'support_agent',

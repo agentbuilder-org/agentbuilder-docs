@@ -7,27 +7,6 @@ description: 'Intercept and modify agent execution at key lifecycle points'
 
 Hooks are optional functions that run automatically at specific points during agent execution. They allow you to modify data, perform side effects, and integrate with external systems without modifying the framework code.
 
-<Card title="Why Use Hooks?" icon="hook">
-  Hooks provide clean extension points to customize agent behavior, add logging, filter messages, integrate with external services, and more - all without touching framework internals.
-</Card>
-
-## Key Benefits
-
-<CardGroup cols={2}>
-  <Card title="Non-Breaking" icon="shield">
-    Errors in hooks are caught and logged - never break execution
-  </Card>
-  <Card title="Auto-Discovered" icon="magnifying-glass">
-    Place in `agents/hooks/` directory - no registration needed
-  </Card>
-  <Card title="Type-Safe" icon="code">
-    Full TypeScript support with `defineHook` utility
-  </Card>
-  <Card title="Hot-Reloadable" icon="bolt">
-    Changes trigger HMR in development
-  </Card>
-</CardGroup>
-
 ## How Hooks Work
 
 Hooks are functions that receive execution context (FlowState) and data, then either:

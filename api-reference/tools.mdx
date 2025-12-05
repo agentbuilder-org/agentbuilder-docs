@@ -274,7 +274,7 @@ interface FlowState {
 
 ## FlowState Utility Functions
 
-All utilities are imported from `@agentbuilder/vite`:
+All utilities are imported from `@standardagents/builder`:
 
 ```typescript
 import {
@@ -283,7 +283,7 @@ import {
   getMessages,
   emitThreadEvent,
   forceTurn,
-} from '@agentbuilder/vite';
+} from '@standardagents/builder';
 ```
 
 ### queueTool
@@ -465,7 +465,7 @@ return {
 ### Database Query Tool
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -507,7 +507,7 @@ export default defineTool(
 ### API Integration Tool
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -553,7 +553,7 @@ export default defineTool(
 ### Tool with Queue Chaining
 
 ```typescript
-import { defineTool, queueTool } from '@agentbuilder/vite';
+import { defineTool, queueTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -585,7 +585,7 @@ export default defineTool(
 ### Tool with Message Injection
 
 ```typescript
-import { defineTool, injectMessage } from '@agentbuilder/vite';
+import { defineTool, injectMessage } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -620,7 +620,7 @@ export default defineTool(
 ### Simple Tool Without Arguments
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 
 export default defineTool(
   'Get the current server time in ISO format',

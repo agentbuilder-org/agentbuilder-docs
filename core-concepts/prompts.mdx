@@ -17,22 +17,12 @@ Prompts in AgentBuilder define the instructions and configuration for how LLMs i
 Prompts are file-based and auto-discovered. Create a TypeScript file in `agents/prompts/` and export your prompt definition—no manual registration needed!
 </Note>
 
-## Why Use Prompts?
-
-Prompts separate AI behavior from agent structure, letting you:
-
-- **Reuse instructions**: Same prompt across multiple agents
-- **Version control**: Track changes to AI behavior
-- **A/B test**: Compare different prompt strategies
-- **Compose**: Create sub-prompts and tool chains
-- **Type-safe**: Validate inputs with Zod schemas
-
 ## Quick Start
 
 Create your first prompt in `agents/prompts/customer_support.ts`:
 
 ```typescript
-import { definePrompt } from '@agentbuilder/vite';
+import { definePrompt } from '@standardagents/builder';
 
 export default definePrompt({
   name: 'customer_support',
@@ -158,7 +148,7 @@ Tools can be function tools (from `agents/tools/`), prompt tools (other prompts 
 Use Zod schemas to validate inputs when prompts are called as tools:
 
 ```typescript
-import { definePrompt } from '@agentbuilder/vite';
+import { definePrompt } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default definePrompt({

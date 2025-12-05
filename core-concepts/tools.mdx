@@ -16,22 +16,12 @@ Tools are callable capabilities that extend what AI agents can do beyond generat
 In AgentBuilder, "tools" includes three types: function tools (custom code), prompt tools (sub-prompts), and agent tools (handoffs). All appear to the LLM as functions it can call.
 </Note>
 
-## Why Use Tools?
-
-Tools bridge the gap between language models and the real world:
-
-- **Action-oriented**: LLMs can perform concrete actions, not just talk
-- **Data access**: Agents can retrieve real-time information
-- **Modular**: Reusable capabilities across agents
-- **Type-safe**: Zod schemas validate inputs
-- **Composable**: Tools can call other tools
-
 ## Quick Start
 
 Create your first tool in `agents/tools/search_database.ts`:
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -251,7 +241,7 @@ return {
 ### Database Query Tool
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -290,7 +280,7 @@ export default defineTool(
 ### API Integration Tool
 
 ```typescript
-import { defineTool } from '@agentbuilder/vite';
+import { defineTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(
@@ -338,7 +328,7 @@ export default defineTool(
 Use `queueTool` to chain multiple tools:
 
 ```typescript
-import { defineTool, queueTool } from '@agentbuilder/vite';
+import { defineTool, queueTool } from '@standardagents/builder';
 import { z } from 'zod';
 
 export default defineTool(

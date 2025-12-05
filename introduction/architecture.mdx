@@ -52,7 +52,7 @@ To actually run an agent, you create a new thread specifying which agent you wan
 
 Each thread is backed by a single Cloudflare DurableObject instance (defined in your `wrangler.jsonc` file as `DurableThread`). Each thread has its own SQLite database that stores the message history of that thread, the execution state of the agent, and detailed logs of the agent's execution.
 
-To create a thread, you can use the '+ New Thread' button in the AgentBuilder UI, or you can submit a HTTP request to the `{mountPoint}/api/threads` endpoint.
+To create a thread, you can use the '+ New Thread' button in the AgentBuilder UI, or you can submit an HTTP request:
 
 ```bash
 curl -X POST "https://example.com/api/threads" \
@@ -78,20 +78,35 @@ A thread's `id` is a cryptographically unique identifier for a given conversatio
   Depending on your use case this id may need to be treated as an authentication token. Anyone with the `threadId` has full access to the thread's data.
 </Warning>
 
+Once a thread is created, you can send new messages to the thread via HTTP request:
+
+```bash
+curl -X POST "https://example.com/api/threads/123e4567-e89b-12d3-a456-426614174000/message" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "What is the weather in Paris today?",
+    "role": "user"
+  }'
+```
+
+## Messages
+
+Both user provided content and model responses are called "messages" and are stored in the DurableThread database. The message history can be retrieved at via HTTP request:
+
+```bash
+curl -X GET "https://example.com/api/threads/123e4567-e89b-12d3-a456-426614174000/messages" \
+  -H "Content-Type: application/json"
+```
+
+Additionally live message data can be streamed via WebSocket, however the simplest way to connect to the WebSocket and use live message data is to implement the `@standardagents/react` package.
 
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Core Concepts" icon="book" href="/core-concepts/agents">
-    Deep dive into agents, prompts, and tools
-  </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/introduction">
-    Complete API documentation
-  </Card>
   <Card title="React Package" icon="react" href="/packages/react">
     Build UIs with @standardagents/react
   </Card>
-  <Card title="Best Practices" icon="star" href="/essentials/best-practices">
-    Production deployment guidelines
+  <Card title="API Reference" icon="code" href="/api-reference/introduction">
+    Read the API reference
   </Card>
 </CardGroup>

@@ -7,29 +7,13 @@ description: 'Configure LLM models with fallbacks and pricing tracking'
 
 Models in Standard Agents define the LLM configurations that your agents and prompts use for AI responses. Each model configuration specifies which provider to use, the specific model ID, fallback models for resilience, and pricing for cost tracking.
 
-<Card title="Key Benefits" icon="brain">
-  - **Provider flexibility**: Support for OpenAI, Anthropic, Google, and OpenRouter
-  - **Automatic fallbacks**: Retry with backup models when primary fails
-  - **Cost tracking**: Track token usage and costs across your application
-  - **Type-safe references**: Auto-generated types prevent typos
-</Card>
-
-## Why Models?
-
-Instead of hardcoding model strings throughout your codebase, Standard Agents uses centralized model definitions that provide:
-
-1. **Reusability**: Define once, reference everywhere
-2. **Consistency**: Same model configuration across all prompts
-3. **Resilience**: Automatic retry with fallback models
-4. **Visibility**: Track costs and usage per model
-
 ## Quick Example
 
-```typescript agents/models/gpt_4o.ts
+```typescript agents/models/heavy_thinking.ts
 import { defineModel } from '@standardagents/builder';
 
 export default defineModel({
-  name: 'gpt-4o',
+  name: 'heavy-thinking',
   provider: 'openai',
   model: 'gpt-4o',
   inputPrice: 2.5,
@@ -44,27 +28,38 @@ import { definePrompt } from '@standardagents/builder';
 
 export default definePrompt({
   name: 'my_prompt',
-  model: 'gpt-4o',  // Type-safe reference
+  model: 'heavy-thinking',  // Type-safe reference
   prompt: 'You are a helpful assistant...',
 });
 ```
 
+## Naming Models
+
+<Tip>
+  **Best Practice:** Name your models based on their **use case**, not the underlying model ID.
+</Tip>
+
+This approach provides several benefits:
+- **Swap models easily** - Change the underlying model without updating prompts
+- **Clear intent** - Team members understand what each model is for
+- **Environment flexibility** - Use different models in dev vs production
+
+**Good model names:**
+- `heavy-thinking` - Complex reasoning tasks
+- `fast-response` - Quick, simple responses
+- `code-generation` - Code-focused tasks
+- `eval` - Evaluation and scoring
+- `budget` - Cost-conscious general use
+- `creative-writing` - Creative content generation
+
+**Avoid:**
+- `gpt-4o` - Ties the name to a specific model
+- `claude-sonnet` - Same issue, hard to swap later
+- `model-1` - No indication of purpose
+
 ## Model Providers
 
-<CardGroup cols={2}>
-  <Card title="OpenAI" icon="openai">
-    GPT-4o, GPT-4 Turbo, o1-mini, and more
-  </Card>
-  <Card title="Anthropic" icon="robot">
-    Claude 4 Sonnet, Claude 3 Opus, Haiku
-  </Card>
-  <Card title="Google" icon="google">
-    Gemini 1.5 Pro, Gemini Flash
-  </Card>
-  <Card title="OpenRouter" icon="route">
-    Access multiple providers through one API
-  </Card>
-</CardGroup>
+Standard Agents supports two model providers: **OpenAI** (direct) and **OpenRouter** (access to multiple providers).
 
 ### OpenAI
 
@@ -78,76 +73,34 @@ defineModel({
 });
 ```
 
-**Available models:**
-- `gpt-4o` - Most capable, multimodal
-- `gpt-4-turbo` - Previous generation flagship
-- `gpt-4o-mini` - Faster, cheaper alternative
-- `gpt-3.5-turbo` - Legacy model
-- `o1-mini`, `o1-preview` - Reasoning models
-
 **API Key:** Set `OPENAI_API_KEY` environment variable
-
-### Anthropic
-
-```typescript
-defineModel({
-  name: 'claude-sonnet',
-  provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
-  inputPrice: 3,
-  outputPrice: 15,
-});
-```
-
-**Available models:**
-- `claude-sonnet-4-20250514` - Latest Sonnet
-- `claude-3-opus-20240229` - Most capable
-- `claude-3-sonnet-20240229` - Balanced performance
-- `claude-3-haiku-20240307` - Fast and efficient
-
-**API Key:** Set `ANTHROPIC_API_KEY` environment variable
 
 ### OpenRouter
 
-OpenRouter provides access to models from multiple providers through a single API:
+OpenRouter provides access to models from multiple providers (OpenAI, Anthropic, Google, Meta, etc.) through a single API:
 
 ```typescript
 defineModel({
   name: 'openrouter-claude',
   provider: 'openrouter',
   model: 'anthropic/claude-sonnet-4.5',
-  includedProviders: ['anthropic'],  // Optional: prefer specific providers
+  includedProviders: ['anthropic'],  // Optional: only use specific providers
 });
 ```
+
+<Note>
+  **No pricing required:** OpenRouter models automatically fetch pricing data from the OpenRouter API at runtime. You do not need to specify `inputPrice` or `outputPrice` for OpenRouter models.
+</Note>
 
 **Model ID format:** `provider/model-name`
 
 **Example models:**
 - `openai/gpt-4o`
-- `anthropic/claude-3-opus`
-- `google/gemini-pro`
-- `meta-llama/llama-2-70b-chat`
+- `anthropic/claude-sonnet-4`
+- `google/gemini-2.0-flash-exp`
+- `meta-llama/llama-3.3-70b-instruct`
 
 **API Key:** Set `OPENROUTER_API_KEY` environment variable
-
-### Google
-
-```typescript
-defineModel({
-  name: 'gemini-pro',
-  provider: 'google',
-  model: 'gemini-1.5-pro',
-  inputPrice: 1.25,
-  outputPrice: 5,
-});
-```
-
-**Available models:**
-- `gemini-1.5-pro` - Most capable
-- `gemini-1.5-flash` - Fast and efficient
-- `gemini-pro` - Previous generation
-
-**API Key:** Set `GOOGLE_API_KEY` environment variable
 
 ## Fallback Models
 
@@ -158,12 +111,26 @@ Fallback models provide resilience when the primary model is unavailable or fail
 - Server errors (5xx)
 - Authentication errors (401)
 
+Fallbacks reference other models you've defined with `defineModel` by their `name`:
+
 ```typescript
+// agents/models/fallback_cheap.ts
+defineModel({
+  name: 'fallback-cheap',
+  provider: 'openai',
+  model: 'gpt-4o-mini',
+  inputPrice: 0.15,
+  outputPrice: 0.60,
+});
+
+// agents/models/primary.ts
 defineModel({
   name: 'primary-model',
   provider: 'openai',
   model: 'gpt-4o',
-  fallbacks: ['fallback-1', 'fallback-2'],  // Try these if primary fails
+  fallbacks: ['fallback-cheap'],  // References the model defined above
+  inputPrice: 2.5,
+  outputPrice: 10,
 });
 ```
 
@@ -205,14 +172,10 @@ defineModel({
 |-------|-------------|--------------|
 | GPT-4o | $2.50 | $10.00 |
 | GPT-4o-mini | $0.15 | $0.60 |
-| Claude 3 Opus | $15.00 | $75.00 |
-| Claude 3 Sonnet | $3.00 | $15.00 |
-| Claude 3 Haiku | $0.25 | $1.25 |
-| Gemini 1.5 Pro | $1.25 | $5.00 |
-| Gemini 1.5 Flash | $0.075 | $0.30 |
+| o1-mini | $1.10 | $4.40 |
 
 <Note>
-  Prices shown are as of 2024 and may change. Check provider websites for current pricing.
+  Prices shown may change. Check provider websites for current pricing. OpenRouter models fetch pricing automatically.
 </Note>
 
 ## Type Safety
@@ -249,42 +212,22 @@ defineModel({
   name: 'budget-primary',
   provider: 'openai',
   model: 'gpt-4o-mini',
-  fallbacks: ['claude-haiku', 'gemini-flash'],
+  fallbacks: ['openrouter-haiku'],
   inputPrice: 0.15,
   outputPrice: 0.60,
 });
 ```
 
-### High-Performance Chain
-
-Use most capable models with reliable fallbacks:
-
-```typescript
-// Primary: Most capable
-defineModel({
-  name: 'high-performance',
-  provider: 'anthropic',
-  model: 'claude-3-opus-20240229',
-  fallbacks: ['gpt-4o', 'gemini-pro'],
-  inputPrice: 15,
-  outputPrice: 75,
-});
-```
-
 ### Multi-Provider Resilience
 
-Fallbacks from different providers for maximum uptime:
+Fallbacks across providers for maximum uptime:
 
 ```typescript
 defineModel({
   name: 'resilient-model',
   provider: 'openai',
   model: 'gpt-4o',
-  fallbacks: [
-    'claude-sonnet',    // Anthropic
-    'gemini-pro',       // Google
-    'openrouter-gpt',   // OpenRouter
-  ],
+  fallbacks: ['openrouter-claude', 'openrouter-gpt'],
 });
 ```
 
@@ -293,17 +236,11 @@ defineModel({
 Configure provider API keys as environment variables:
 
 ```bash .dev.vars
-# OpenAI
+# OpenAI (direct)
 OPENAI_API_KEY=sk-...
 
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-
-# OpenRouter
+# OpenRouter (access to multiple providers)
 OPENROUTER_API_KEY=sk-or-...
-
-# Google
-GOOGLE_API_KEY=...
 ```
 
 For Cloudflare Workers, add to `wrangler.jsonc`:
@@ -312,7 +249,7 @@ For Cloudflare Workers, add to `wrangler.jsonc`:
 {
   "vars": {
     "OPENAI_API_KEY": "...",
-    "ANTHROPIC_API_KEY": "..."
+    "OPENROUTER_API_KEY": "..."
   }
 }
 ```
@@ -321,7 +258,7 @@ Or use Cloudflare secrets for production:
 
 ```bash
 wrangler secret put OPENAI_API_KEY
-wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put OPENROUTER_API_KEY
 ```
 
 ## File Organization
@@ -331,14 +268,13 @@ Models are auto-discovered from the `agents/models/` directory:
 ```
 agents/
 └── models/
-    ├── gpt_4o.ts           # export default defineModel({...})
-    ├── claude_sonnet.ts    # export default defineModel({...})
-    ├── gemini_pro.ts       # export default defineModel({...})
+    ├── heavy_thinking.ts   # export default defineModel({...})
+    ├── fast_response.ts    # export default defineModel({...})
     └── budget.ts           # export default defineModel({...})
 ```
 
 **Requirements:**
-- Use snake_case for file names: `gpt_4o.ts`, `claude_sonnet.ts`
+- Use snake_case for file names: `heavy_thinking.ts`, `fast_response.ts`
 - One model per file
 - Default export required
 

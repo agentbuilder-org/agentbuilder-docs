@@ -1,11 +1,11 @@
 ---
-title: "@agentbuilder/react"
+title: "@standardagents/react"
 description: "React hooks and components for AgentBuilder - connect to AI agent threads with real-time updates"
 ---
 
 ## Overview
 
-The `@agentbuilder/react` package provides React hooks and components for building UIs that connect to AgentBuilder threads. It handles real-time message streaming, custom event listening, and workblock transformation for tool visualization.
+The `@standardagents/react` package provides React hooks and components for building UIs that connect to AgentBuilder threads. It handles real-time message streaming, custom event listening, and workblock transformation for tool visualization.
 
 <Card title="Key Features" icon="react">
 - Real-time WebSocket updates for live message streaming
@@ -19,15 +19,15 @@ The `@agentbuilder/react` package provides React hooks and components for buildi
 ## Installation
 
 ```bash npm
-npm install @agentbuilder/react
+npm install @standardagents/react
 ```
 
 ```bash pnpm
-pnpm add @agentbuilder/react
+pnpm add @standardagents/react
 ```
 
 ```bash yarn
-yarn add @agentbuilder/react
+yarn add @standardagents/react
 ```
 
 ## Quick Start
@@ -38,12 +38,12 @@ import {
   ThreadProvider,
   useThread,
   sendMessage,
-} from "@agentbuilder/react"
+} from "@standardagents/react"
 
 function App() {
   return (
     <AgentBuilderProvider config={{ endpoint: "https://your-api.com" }}>
-      <ThreadProvider threadId="thread-123">
+      <ThreadProvider threadId="123e4567-e89b-12d3-a456-426614174000">
         <ChatInterface />
       </ThreadProvider>
     </AgentBuilderProvider>
@@ -54,7 +54,7 @@ function ChatInterface() {
   const messages = useThread()
 
   const handleSend = async (text: string) => {
-    await sendMessage("thread-123", {
+    await sendMessage("123e4567-e89b-12d3-a456-426614174000", {
       role: "user",
       content: text,
     })
@@ -109,7 +109,7 @@ Establishes a WebSocket connection to a specific thread and provides context for
 
 ```tsx
 <ThreadProvider
-  threadId="thread-123"
+  threadId="123e4567-e89b-12d3-a456-426614174000"
   preload={true}
   live={true}
   depth={0}
@@ -137,7 +137,7 @@ Establishes a WebSocket connection to a specific thread and provides context for
 Returns messages from the current thread context. Must be used within a `ThreadProvider`.
 
 ```tsx
-import { useThread } from "@agentbuilder/react"
+import { useThread } from "@standardagents/react"
 
 function ChatMessages() {
   const messages = useThread()
@@ -150,6 +150,65 @@ function ChatMessages() {
     </div>
   )
 }
+```
+
+**Returns:** `ThreadMessage[]`
+
+The return type is a union of `Message` and `WorkMessage`:
+
+```typescript
+type ThreadMessage = Message | WorkMessage
+
+interface Message {
+  id: string
+  role: "system" | "user" | "assistant" | "tool"
+  content: string | null
+  name?: string | null
+  tool_calls?: string | null          // JSON array of tool calls
+  tool_call_id?: string | null        // For tool role messages
+  created_at: number                  // microseconds
+  status?: "pending" | "completed" | "failed"
+  silent?: boolean
+  tool_status?: "success" | "error" | null
+  reasoning_content?: string | null
+  parent_id?: string | null
+  depth?: number
+}
+
+interface WorkMessage {
+  id: string
+  type: "workblock"                   // Use this to differentiate from Message
+  content: string | null
+  reasoning_content?: string | null
+  workItems: WorkItem[]
+  status: "pending" | "completed" | "failed"
+  created_at: number
+  depth?: number
+}
+
+interface WorkItem {
+  id: string
+  type: "tool_call" | "tool_result"
+  name?: string                       // Tool name (for tool_call)
+  content: string | null              // Tool result content
+  status?: "pending" | "success" | "error" | null
+  tool_call_id?: string
+}
+```
+
+When `useWorkblocks: true` (default), tool calls are transformed into `WorkMessage` objects. When `useWorkblocks: false`, you get raw `Message` objects only.
+
+To differentiate between them:
+
+```tsx
+messages.map((msg) => {
+  if ("type" in msg && msg.type === "workblock") {
+    // msg is WorkMessage
+    return <WorkBlock workItems={msg.workItems} status={msg.status} />
+  }
+  // msg is Message
+  return <MessageBubble role={msg.role} content={msg.content} />
+})
 ```
 
 **Options:**
@@ -170,7 +229,7 @@ const messages = useThread({ useWorkblocks: false })
 Returns the current thread ID from context.
 
 ```tsx
-import { useThreadId } from "@agentbuilder/react"
+import { useThreadId } from "@standardagents/react"
 
 function ThreadInfo() {
   const threadId = useThreadId()
@@ -178,12 +237,53 @@ function ThreadInfo() {
 }
 ```
 
+### useThreadContext
+
+Returns the full thread context including messages, loading state, error state, and connection status. Must be used within a `ThreadProvider`.
+
+```tsx
+import { useThreadContext } from "@standardagents/react"
+
+function ThreadStatus() {
+  const { threadId, messages, loading, error, connectionStatus } = useThreadContext()
+
+  if (loading) return <span>Loading...</span>
+  if (error) return <span>Error: {error.message}</span>
+
+  return (
+    <div>
+      <span>Thread: {threadId}</span>
+      <span>Status: {connectionStatus}</span>
+      <span>Messages: {messages.length}</span>
+    </div>
+  )
+}
+```
+
+**Returns:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `threadId` | `string` | The current thread ID |
+| `messages` | `Message[]` | All messages in the thread |
+| `loading` | `boolean` | Whether messages are loading |
+| `error` | `Error \| null` | Any error that occurred |
+| `connectionStatus` | `ConnectionStatus` | WebSocket connection status |
+| `subscribeToEvent` | `function` | Subscribe to custom events |
+| `options` | `ThreadProviderOptions` | Options passed to the provider |
+
+**ConnectionStatus:**
+
+```typescript
+type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+```
+
 ### onThreadEvent
 
 Hook to listen for custom events emitted by the backend via WebSocket.
 
 ```tsx
-import { onThreadEvent } from "@agentbuilder/react"
+import { onThreadEvent } from "@standardagents/react"
 import { useCallback } from "react"
 
 function GamePreview() {
@@ -209,7 +309,7 @@ Events are emitted from the backend using `emitThreadEvent()`:
 
 ```typescript
 // In a tool or hook on the backend
-import { emitThreadEvent } from "@agentbuilder/vite"
+import { emitThreadEvent } from "@standardagents/builder"
 
 emitThreadEvent(flow, "game_built", { success: true })
 ```
@@ -219,7 +319,7 @@ emitThreadEvent(flow, "game_built", { success: true })
 State-based hook that returns the latest event data as React state.
 
 ```tsx
-import { useThreadEvent } from "@agentbuilder/react"
+import { useThreadEvent } from "@standardagents/react"
 
 function ProgressIndicator() {
   const progress = useThreadEvent<{ step: number; total: number }>("progress")
@@ -243,6 +343,45 @@ function ProgressIndicator() {
 | Only care about latest value | `useThreadEvent` |
 </Accordion>
 
+### useSendMessage
+
+Hook that returns a function to send messages to the current thread. Must be used within a `ThreadProvider`. This is a convenience wrapper around `sendMessage` that automatically uses the thread ID from context.
+
+```tsx
+import { useSendMessage } from "@standardagents/react"
+
+function ChatInput() {
+  const sendMessage = useSendMessage()
+
+  const handleSubmit = async (content: string) => {
+    await sendMessage({
+      role: "user",
+      content,
+    })
+  }
+
+  return <input onSubmit={(e) => handleSubmit(e.currentTarget.value)} />
+}
+```
+
+### useStopThread
+
+Hook that returns a function to stop the current thread's execution. Must be used within a `ThreadProvider`. This is a convenience wrapper around `stopThread` that automatically uses the thread ID from context.
+
+```tsx
+import { useStopThread } from "@standardagents/react"
+
+function StopButton() {
+  const stopThread = useStopThread()
+
+  return (
+    <button onClick={() => stopThread()}>
+      Stop
+    </button>
+  )
+}
+```
+
 ## Functions
 
 ### sendMessage
@@ -250,10 +389,10 @@ function ProgressIndicator() {
 Send a message to a thread. Works anywhere in your app (doesn't require being inside ThreadProvider).
 
 ```tsx
-import { sendMessage } from "@agentbuilder/react"
+import { sendMessage } from "@standardagents/react"
 
 async function handleSend(content: string) {
-  await sendMessage("thread-123", {
+  await sendMessage("123e4567-e89b-12d3-a456-426614174000", {
     role: "user",
     content,
   })
@@ -272,8 +411,8 @@ async function handleSend(content: string) {
 
 ```typescript
 interface SendMessagePayload {
-  role: "user" | "assistant"
-  content: string | null
+  role: "user" | "assistant" | "system"
+  content: string
   silent?: boolean  // If true, message won't appear in UI
 }
 ```
@@ -283,10 +422,10 @@ interface SendMessagePayload {
 Cancel an in-flight thread execution.
 
 ```tsx
-import { stopThread } from "@agentbuilder/react"
+import { stopThread } from "@standardagents/react"
 
 async function handleStop() {
-  await stopThread("thread-123")
+  await stopThread("123e4567-e89b-12d3-a456-426614174000")
 }
 ```
 
@@ -328,6 +467,7 @@ interface WorkMessage {
   workItems: WorkItem[]
   status: "pending" | "completed" | "failed"
   created_at: number
+  depth?: number
 }
 
 interface WorkItem {
@@ -335,7 +475,7 @@ interface WorkItem {
   type: "tool_call" | "tool_result"
   name?: string
   content: string | null
-  status?: "success" | "error" | null
+  status?: "pending" | "success" | "error" | null
   tool_call_id?: string
 }
 ```
@@ -377,13 +517,38 @@ The package is written in TypeScript and includes full type definitions.
 
 ```tsx
 import type {
+  // Core types
   Message,
   WorkMessage,
+  WorkItem,
   ThreadMessage,
-  SendMessagePayload,
+  Thread,
+
+  // Configuration
+  AgentBuilderConfig,
   UseThreadOptions,
+  GetMessagesOptions,
+  SendMessagePayload,
   ThreadProviderOptions,
-} from "@agentbuilder/react"
+
+  // WebSocket events
+  MessageDataEvent,
+  MessageChunkEvent,
+  ErrorEvent,
+  ThreadEvent,
+  MessageStreamEvent,
+  LogDataEvent,
+  CustomEvent,
+  StoppedByUserEvent,
+  LogStreamEvent,
+
+  // WebSocket callbacks
+  MessageWebSocketCallbacks,
+  LogWebSocketCallbacks,
+} from "@standardagents/react"
+
+// Connection status type
+import type { ConnectionStatus } from "@standardagents/react"
 ```
 
 ### Message Type
@@ -391,18 +556,22 @@ import type {
 ```typescript
 interface Message {
   id: string
-  role: "user" | "assistant" | "system" | "tool"
+  role: "system" | "user" | "assistant" | "tool"
   content: string | null
-  created_at: number // microseconds
-  reasoning_content?: string | null
-  silent?: boolean
-  depth?: number
-  parent_id?: string | null
-  tool_calls?: string | null      // JSON array
-  tool_call_id?: string | null
   name?: string | null
+  tool_calls?: string | null          // JSON array
+  tool_call_id?: string | null
+  log_id?: string | null
+  created_at: number                  // microseconds
+  request_sent_at?: number | null
+  response_completed_at?: number | null
   status?: "pending" | "completed" | "failed"
+  silent?: boolean
   tool_status?: "success" | "error" | null
+  reasoning_content?: string | null
+  reasoning_details?: string | null   // JSON array
+  parent_id?: string | null
+  depth?: number
 }
 ```
 
@@ -416,11 +585,11 @@ import {
   ThreadProvider,
   useThread,
   useThreadId,
+  useSendMessage,
+  useStopThread,
   onThreadEvent,
-  sendMessage,
-  stopThread,
-} from "@agentbuilder/react"
-import type { ThreadMessage, Message, WorkMessage } from "@agentbuilder/react"
+} from "@standardagents/react"
+import type { ThreadMessage, Message, WorkMessage } from "@standardagents/react"
 
 function App() {
   const [threadId, setThreadId] = useState<string | null>(null)
@@ -443,13 +612,15 @@ function App() {
 function ChatInterface() {
   const threadId = useThreadId()
   const messages = useThread({ useWorkblocks: true })
+  const sendMessage = useSendMessage()
+  const stopThread = useStopThread()
   const [input, setInput] = useState("")
 
   const isRunning = messages.some((m) => m.status === "pending")
 
   const handleSend = async () => {
     if (!input.trim() || isRunning) return
-    await sendMessage(threadId, { role: "user", content: input })
+    await sendMessage({ role: "user", content: input })
     setInput("")
   }
 
@@ -463,7 +634,7 @@ function ChatInterface() {
         disabled={isRunning}
       />
       {isRunning ? (
-        <button onClick={() => stopThread(threadId)}>Stop</button>
+        <button onClick={() => stopThread()}>Stop</button>
       ) : (
         <button onClick={handleSend}>Send</button>
       )}
