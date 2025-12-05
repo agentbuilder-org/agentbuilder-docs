@@ -1,12 +1,12 @@
 ---
-title: 'Overview'
+title: "Overview"
 ---
 
 # What Is Standard Agent Builder?
 
 Standard Agents are portable agents that adhere to the (not yet released) Standard Agent Specification. The Standard Agent Builder (we'll call it AgentBuilder) is a first-party tool for building, deploying, and managing Standard Agents.
 
-Standard Agents are designed to be finely tuned to specific tasks, workflows, or business use cases. Rather than assume a single model is the best fit for every task, Standard Agents empowers you — the engineer - to determine what tradeoffs are best for your use case. Once built, Standard Agents can be composed into larger Agents that have multiple capabilities, or even deployed as MCP tools for use in third party applications.
+Standard Agents are designed to be finely tuned to specific tasks, workflows, or business use cases. Rather than assuming a single model is the best fit for every task, Standard Agents empower you — the engineer — to determine what tradeoffs are best for your use case. Once built, Standard Agents can be composed into larger Agents that have multiple capabilities, or even deployed as MCP tools for use in third party applications.
 
 AgentBuilder is a vite plugin that provides a complete development, deployment, and management experience for Standard Agents. It includes a built-in admin UI for testing and monitoring agents, a CLI for scaffolding and managing projects, and a SDK for building and extending agents. Each AgentBuilder instance produces a standard API for each Standard Agent it deploys, so you can easily integrate them into your own applications.
 
@@ -15,22 +15,23 @@ AgentBuilder is a vite plugin that provides a complete development, deployment, 
 <AccordionGroup>
   <Accordion title="Persistent Conversation Threads">
     Every agent thread is backed by a Cloudflare Durable Object with its own isolated SQLite database. This means:
+
     - Message history is automatically persisted
     - Execution logs and tool calls are tracked on a per-thread basis
     - Conversation state is maintained across requests
     - Each thread is fully isolated
   </Accordion>
-
   <Accordion title="Built-in Admin UI">
     Standard Agents includes a complete admin interface for:
+
     - Configuring agents, models, and providers
     - Testing agents in real-time
     - Monitoring conversation threads
     - Viewing execution logs and debugging
   </Accordion>
-
   <Accordion title="File-Based Auto-Discovery">
     All agents, prompts, models, and tools are defined as type-safe TypeScript files.
+
     - All files in the `agents/` directory are automatically discovered and loaded
     - Agents, prompts, models, tools, and hooks are all committed to source control.
     - Admin UI reads and writes directly to these TypeScript files.
@@ -39,7 +40,7 @@ AgentBuilder is a vite plugin that provides a complete development, deployment, 
 </AccordionGroup>
 
 <Note>
-Standard Agent Builder is proprietary software owned by FormKit Inc. For licensing inquiries, contact enterprise@formkit.com. However, the Standard Agent Specification is open source and free to use.
+  Standard Agent Builder is proprietary software owned by FormKit Inc. For licensing inquiries, contact [enterprise@formkit.com](mailto:enterprise@formkit.com). However, the Standard Agent Specification is open source and free to use.
 </Note>
 
 ## Next Steps
