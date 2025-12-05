@@ -1,16 +1,12 @@
 ---
-title: 'Update Thread'
-api: 'PATCH /api/threads/{threadId}'
+title: "Update Thread"
+api: "PATCH /api/threads/{threadId}"
 ---
 
 Updates the metadata for an existing thread. Metadata is merged with existing values.
 
 <ParamField path="threadId" type="string" required>
   The unique thread identifier (UUID)
-</ParamField>
-
-<ParamField body="metadata" type="object" required>
-  The metadata object to merge with existing metadata
 </ParamField>
 
 <ResponseField name="success" type="boolean" required>
@@ -22,6 +18,7 @@ Updates the metadata for an existing thread. Metadata is merged with existing va
 </ResponseField>
 
 <RequestExample>
+
 ```bash cURL
 curl -X PATCH https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
@@ -32,6 +29,7 @@ curl -X PATCH https://your-worker.workers.dev/api/threads/550e8400-e29b-41d4-a71
     }
   }'
 ```
+
 
 ```typescript JavaScript
 const response = await fetch(
@@ -49,9 +47,11 @@ const response = await fetch(
 );
 const result = await response.json();
 ```
+
 </RequestExample>
 
 <ResponseExample>
+
 ```json 200
 {
   "success": true,
@@ -61,4 +61,5 @@ const result = await response.json();
   }
 }
 ```
+
 </ResponseExample>
